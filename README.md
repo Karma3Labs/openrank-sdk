@@ -67,8 +67,8 @@ To run EigenTrust using the above input:
 ```python
 from py_eigentrust import EigenTrust
 
-api_key = 'b3NvX2tleV8x'
-a = EigenTrust()
+api_key = 'your_api_key'
+a = EigenTrust(api_key=api_key)
 
 # Option A - Use local variable
 a.run_eigentrust(localtrust)
@@ -117,7 +117,8 @@ alpha of only 0.01 (1%):
 ```python
 from py_eigentrust import EigenTrust
 
-a = EigenTrust(alpha=0.01)
+api_key = 'your_api_key'
+a = EigenTrust(api_key=api_key, alpha=0.01)
 
 a.run_eigentrust(localtrust, pretrust)
 ```
