@@ -132,7 +132,8 @@ class EigenTrust:
       response = http.request('POST', f"{self.go_eigentrust_host_url}/basic/v1/compute",
                   headers={
                           'Accept': 'application/json',
-                          'Content-Type': 'application/json'
+                          'Content-Type': 'application/json',
+                          'API-Key': self.api_key,
                           },
                   body=encoded_data,
                   timeout=self.go_eigentrust_timeout_ms,
