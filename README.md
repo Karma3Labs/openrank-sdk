@@ -1,6 +1,7 @@
-# Py-EigenTrust
+# OpenRank SDK
 
-Py-EigenTrust is a python wrapper for https://github.com/Karma3Labs/go-eigentrust
+## EigenTrust by OpenRank
+EigenTrust SDk is a python wrapper for https://github.com/Karma3Labs/go-eigentrust
 
 ### Input
 
