@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "py-eigentrust"
-version = "0.0.1"
+name = "openrank-sdk"
+version = "0.0.2"
 description = ""
 authors = ["SeungJu Lee <sj@karma3labs.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.8"
 urllib3 = "^2.2.1"
 pandas = "^2.2.2"
 

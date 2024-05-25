@@ -1,4 +1,4 @@
-from py_eigentrust import EigenTrust
+from openrank_sdk import EigenTrust
 
 api_key = 'b3NvX2tleV8x'
 a = EigenTrust(api_key=api_key)
@@ -33,12 +33,12 @@ pretrust = [{
 scores = a.run_eigentrust(ijv, pretrust)
 print(scores)
 
-scores = a.run_eigentrust_from_csv('example/lt.csv')
+scores = a.run_eigentrust_from_csv('examples/lt.csv')
 print(scores)
 
-scores = a.run_eigentrust_from_csv('example/lt.csv', 'example/pt.csv')
+scores = a.run_eigentrust_from_csv('examples/lt.csv', 'examples/pt.csv')
 print(scores)
 
 a = EigenTrust(api_key=api_key, alpha=0.01)
-scores = a.run_eigentrust_from_csv('example/lt.csv', 'example/pt.csv')
+scores = a.run_eigentrust_from_csv('examples/lt.csv', 'examples/pt.csv')
 print(scores)
