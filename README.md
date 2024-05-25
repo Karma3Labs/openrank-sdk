@@ -66,7 +66,7 @@ VM is trusted twice as much as EK.
 To run EigenTrust using the above input:
 
 ```python
-from py_eigentrust import EigenTrust
+from openrank_sdk import EigenTrust
 
 api_key = 'your_api_key'
 a = EigenTrust(api_key=api_key)
@@ -116,7 +116,7 @@ The CLI default for alpha is 0.5 (50%).  If you re-run EigenTrust using a lower
 alpha of only 0.01 (1%):
 
 ```python
-from py_eigentrust import EigenTrust
+from openrank_sdk import EigenTrust
 
 api_key = 'your_api_key'
 a = EigenTrust(api_key=api_key, alpha=0.01)
