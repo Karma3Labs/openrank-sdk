@@ -4,7 +4,7 @@ import time
 import json
 import urllib3
 import logging
-
+import csv
 class IJV(TypedDict):
   i: str
   j: str
@@ -78,25 +78,27 @@ class EigenTrust:
     return addr_scores
 
   def run_eigentrust_from_csv(self, localtrust_filename:str, pretrust_filename:str = None) -> List[Score]:
-    start_time = time.perf_counter()
-    import pandas as pd
-    df = pd.read_csv(localtrust_filename, sep=',', header=None)
     localtrust = []
-    for i, j, v in df.values:
-      # is header
-      if not v.isnumeric():
-        continue
-      localtrust.append({'i': str(i), 'j': str(j), 'v': float(v)})
+    with open(localtrust_filename, "r") as f:
+      reader = csv.reader(f, delimiter=",")
+      for i, line in enumerate(reader):
+          i, j, v = line[0], line[1], line[2]
+          # is header
+          if not v.isnumeric():
+            continue
+          localtrust.append({'i': str(i), 'j': str(j), 'v': float(v)})
 
     pretrust = None
     if pretrust_filename:
       pretrust = []
-      df = pd.read_csv(pretrust_filename, sep=',', header=None)
-      for i, v in df.values:
-        # is header
-        if not v.isnumeric():
-          continue
-        pretrust.append({'i': str(i), 'v': float(v)})
+      with open(localtrust_filename, "r") as f:
+        reader = csv.reader(f, delimiter=",")
+        for i, line in enumerate(reader):
+            i, v = line[0], line[1]
+            # is header
+            if not v.isnumeric():
+              continue
+            pretrust.append({'i': str(i), 'v': float(v)})
 
     return self.run_eigentrust(localtrust, pretrust)
 
