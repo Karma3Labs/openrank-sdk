@@ -153,3 +153,61 @@ class EigenTrust:
     except Exception as e:
       logging.error('error while sending a request to go-eigentrust', e)
     logging.debug(f"go-eigentrust took {time.perf_counter() - start_time} secs ")
+
+  def export_scores_to_csv(self, scores: List[Score], filepath: str):
+    with open(filepath, 'w', newline='') as csvfile:
+      writer = csv.writer(csvfile, delimiter=',')
+      for line in scores:
+        writer.writerow([line['i'], line['v']])
+
+  def export_csv_to_dune(
+    self,
+    filepath: str,
+    tablename: str,
+    description: str,
+    is_private: bool,
+    api_key: str,
+  ):
+    csv_header = "i,v,"
+    lines = [csv_header]
+    with open(filepath, "r") as f:
+      reader = csv.reader(f, delimiter=',')
+      for _, line in enumerate(reader):
+        i, v = line[0], line[1]
+        lines.append(f"{i},{v},")
+    data = '\n'.join(lines)
+    req = {
+      "data": data,
+      "description": description,
+      "table_name": tablename,
+      "is_private": is_private,
+    }
+
+    start_time = time.perf_counter()
+    try:
+      http = urllib3.PoolManager()
+      encoded_data = json.dumps(req)
+      print(encoded_data)
+
+      response = http.request('POST', "https://api.dune.com/api/v1/table/upload/csv",
+                  headers={
+                          'Accept': 'application/json',
+                          'Content-Type': 'application/json',
+                          'X-DUNE-API-KEY': api_key,
+                          },
+                  body=encoded_data,
+                  # timeout=30 * 1000,
+                  )
+      resp_dict = json.loads(response.data.decode('utf-8'))
+
+      if response.status != 200:
+        logging.error(f"Server error: {response.status}:{resp_dict} {resp_dict}")
+        raise {
+          "statusCode": response.status,
+          "body": str(resp_dict)
+      }
+
+      return resp_dict
+    except Exception as e:
+      logging.error('error while sending a request to dune-upload-csv', e)
+    logging.debug(f"dune-upload-csv took {time.perf_counter() - start_time} secs ")
