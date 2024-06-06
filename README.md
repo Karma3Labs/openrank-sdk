@@ -3,6 +3,12 @@
 ## EigenTrust by OpenRank
 EigenTrust SDk is a python wrapper for https://github.com/Karma3Labs/go-eigentrust
 
+## Demo
+Notebook: https://app.hex.tech/f7590f16-5e23-4925-9e84-6656844ee649/hex/2a1f9e4b-76e2-49fe-979a-750043589cbb/draft/logic
+
+Video: https://www.loom.com/share/483a3a1fab244207924595d98c056c70?sid=3112f668-3970-474d-9a3f-ed925231eb6e
+
+
 ### Input
 
 You will need *local trust* and optionally *pre-trust.*  If pre-trust is not specified, each peer will have an equal weight. Both can be specified
