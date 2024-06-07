@@ -154,27 +154,35 @@ class EigenTrust:
       logging.error('error while sending a request to go-eigentrust', e)
     logging.debug(f"go-eigentrust took {time.perf_counter() - start_time} secs ")
 
-  def export_scores_to_csv(self, scores: List[Score], filepath: str):
+  def export_scores_to_csv(self, scores: List[Score], filepath: str, headers: List[str]):
     with open(filepath, 'w', newline='') as csvfile:
       writer = csv.writer(csvfile, delimiter=',')
       for line in scores:
-        writer.writerow([line['i'], line['v']])
+        item = []
+        for h in headers:
+          item.append(line[h])
+        writer.writerow(item)
 
   def export_csv_to_dune(
     self,
     filepath: str,
+    headers: List[str],
     tablename: str,
     description: str,
     is_private: bool,
     api_key: str,
   ):
-    csv_header = "i,v,"
+    csv_header = ""
+    for h in headers:
+      csv_header += f"{h},"
     lines = [csv_header]
     with open(filepath, "r") as f:
       reader = csv.reader(f, delimiter=',')
       for _, line in enumerate(reader):
-        i, v = line[0], line[1]
-        lines.append(f"{i},{v},")
+        header = ""
+        for l in line:
+          header += f'{l},'
+        lines.append(header)
     data = '\n'.join(lines)
     req = {
       "data": data,
