@@ -53,6 +53,7 @@ lim_num_neighbors = 200
 hops = 2
 neighbors = get_token_transfer_neighbors([example_address], hops, lim_num_neighbors)
 neighbors = [{ 'i': n['address'], 'v': n['score'] } for n in neighbors]
+headers = ['i', 'v']
 
 from openrank_sdk import EigenTrust
 sdk = EigenTrust()
@@ -60,5 +61,5 @@ sdk = EigenTrust()
 dune_table_name = f'openrank_op_token_txfr_{example_address}'
 export_path = f'./examples/{dune_table_name}.csv'
 description = 'This is a list of addresses with their OpenRank scores based on the token transfer to address for this given users. hops={hops}, lim_num_neighbors={lim_num_neighbors}'
-sdk.export_scores_to_csv(neighbors, export_path)
-sdk.export_csv_to_dune(export_path, dune_table_name, description, False, DUNE_API_KEY)
+sdk.export_scores_to_csv(neighbors, export_path, headers)
+sdk.export_csv_to_dune(export_path, headers, dune_table_name, description, False, DUNE_API_KEY)
