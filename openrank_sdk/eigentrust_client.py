@@ -39,6 +39,16 @@ class EigenTrust:
   def run_eigentrust(self, localtrust: List[IJV], pretrust: List[IV]=None) -> List[Score]:
     start_time = time.perf_counter()
 
+    lt = []
+    for l in localtrust:
+      if l['v'] <= 0.0:
+        logging.warn(f"v cannot be less than or equal to 0, skipping this entry: {l}")
+      elif l['i'] == l['j']:
+        logging.warn(f"i and j cannot be same, skipping this entry: {l}")
+      else:
+        lt.append(l)
+    localtrust = lt
+
     addresses = set()
     for l in localtrust:
       addresses.add(l["i"])
@@ -55,9 +65,18 @@ class EigenTrust:
 
     if not pretrust:
       pt_len = len(addresses)
-      logging.debug(f"generating pretrust with {addresses}")
+      logging.debug(f"generating pretrust from localtrust with equally weighted pretrusted value")
       pretrust = [{'i': addr_to_int_map[addr], 'v': 1/pt_len} for addr in addresses]
     else:
+      pt = []
+      for p in pretrust:
+        if p['v'] <= 0.0:
+          logging.warn(f"v cannot be less than or equal to 0, skipping this entry: {l}")
+        elif not p['i'] in addresses:
+          logging.warn(f"i entry not found in localtrust, skipping this entry: {l}")
+        else:
+          pt.append(p)
+      pretrust = pt
       pretrust = [{'i': addr_to_int_map[p['i']], 'v': p['v']} for p in pretrust]
 
     logging.debug(f"generating localtrust with {len(addresses)} addresses")
