@@ -268,7 +268,7 @@ class EigenTrust:
     response = self.http.request(
       'POST',
       f'{self.go_eigentrust_host_url}/upload/{endpoint}?overwrite={overwrite}',
-      headers={'Content-Type': 'application/gzip'},
+      headers={'Content-Type': 'text/csv'},
       # body=compressed.getvalue()
       body=csv_buffer.getvalue().encode('utf-8'),
     )
@@ -282,7 +282,7 @@ class EigenTrust:
     response = self.http.request(
       'GET',
       f'{self.go_eigentrust_host_url}/download/{endpoint}',
-      headers={'Accept': 'application/gzip'}
+      headers={'Accept': 'text/csv'}
     )
     if response.status != 200:
       raise Exception(f"Failed to download CSV: {response.data.decode('utf-8')}")
