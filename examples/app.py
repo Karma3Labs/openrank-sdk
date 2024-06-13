@@ -39,6 +39,34 @@ print(scores)
 scores = a.run_eigentrust_from_csv('examples/lt.csv', 'examples/pt.csv')
 print(scores)
 
-a = EigenTrust(api_key=api_key, alpha=0.01)
+a = EigenTrust(host_url='https://openrank-sdk-api.k3l.io', api_key=api_key, alpha=0.01)
 scores = a.run_eigentrust_from_csv('examples/lt.csv', 'examples/pt.csv')
 print(scores)
+eigentrust_id = 'demo-1'
+published_url = a.publish_eigentrust(eigentrust_id, scores)
+print('eigentrust url', published_url)
+scores_from_web = a.fetch_eigentrust(eigentrust_id)
+print('scores_from_web - demo-1', scores_from_web)
+
+published_url = a.publish_localtrust(eigentrust_id, ijv)
+print('localtrust url', published_url)
+lt_from_web = a.fetch_localtrust(eigentrust_id)
+print('lt_from_web - demo-1', lt_from_web)
+
+published_url = a.publish_pretrust(eigentrust_id, pretrust)
+print('pretrust url', published_url)
+pt_from_web = a.fetch_pretrust(eigentrust_id)
+print('pt_from_web - demo-1', pt_from_web)
+
+localtrust_from_web = a.run_eigentrust_from_id('demo-1', 'demo-1')
+print('localtrust_from_web', localtrust_from_web)
+
+eigentrust_id_2 = 'demo-2'
+scores, url = a.run_and_publish_eigentrust(eigentrust_id_2, ijv, pretrust)
+print('run_and_publish_eigentrust', scores, url)
+
+scores, url = a.run_and_publish_eigentrust_from_id('demo-1-1', 'demo-1', 'demo-1')
+print('run_and_publish_eigentrust_from_id', scores, url)
+
+scores = a.fetch_eigentrust('demo-1-1')
+print('fetch_eigentrust', scores, url)
