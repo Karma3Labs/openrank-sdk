@@ -167,17 +167,14 @@ Initialize the EigenTrust class with optional parameters.
 
 Args:
 - `alpha (float)`: The alpha value for EigenTrust.
-- `epsilon (float)`: The epsilon value for EigenTrust.
-- `max_iter (int)`: The maximum number of iterations for EigenTrust.
-- `flat_tail (int)`: The flat tail value for EigenTrust.
 - `host_url (str)`: The host URL for the EigenTrust service.
-- `timeout (int)`: The timeout value for the EigenTrust requests.
+- `timeout (int)`: The timeout value in millisecond for the EigenTrust requests.
 - `api_key (str)`: The API key for authentication.
 
 Example:
 
 ```python
-et = EigenTrust(alpha=0.5, epsilon=1.0, max_iter=50, flat_tail=2, host_url="https://example.com", timeout=900000, api_key="your_api_key")
+et = EigenTrust(alpha=0.5, host_url="https://example.com", timeout=900000, api_key="your_api_key")
 ```
 
 #### `run_eigentrust(self, localtrust: List[IJV], pretrust: List[IV]=None) -> List[Score]`

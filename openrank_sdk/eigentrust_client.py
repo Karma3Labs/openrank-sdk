@@ -25,9 +25,9 @@ class Score(TypedDict):
 SCORE_CSV_HEADERS = ['i', 'v']
 
 DEFAULT_EIGENTRUST_ALPHA: float = 0.5
-DEFAULT_EIGENTRUST_EPSILON: float = 1.0
-DEFAULT_EIGENTRUST_MAX_ITER: int = 50
-DEFAULT_EIGENTRUST_FLAT_TAIL: int = 2
+# DEFAULT_EIGENTRUST_EPSILON: float = 1.0
+# DEFAULT_EIGENTRUST_MAX_ITER: int = 50
+# DEFAULT_EIGENTRUST_FLAT_TAIL: int = 2
 DEFAULT_EIGENTRUST_HOST_URL: str = "https://openrank-sdk-api.k3l.io"
 DEFAULT_EIGENTRUST_TIMEOUT_MS: int = 15 * 60 * 1000
 
@@ -38,9 +38,6 @@ class EigenTrust:
 
     Args:
         alpha (float): The alpha value for EigenTrust.
-        epsilon (float): The epsilon value for EigenTrust.
-        max_iter (int): The maximum number of iterations for EigenTrust.
-        flat_tail (int): The flat tail value for EigenTrust.
         host_url (str): The host URL for the EigenTrust service.
         timeout (int): The timeout value for the EigenTrust requests.
         api_key (str): The API key for authentication.
@@ -49,9 +46,9 @@ class EigenTrust:
         et = EigenTrust(alpha=0.5, epsilon=1.0, max_iter=50, flat_tail=2, host_url="https://example.com", timeout=900000, api_key="your_api_key")
     """
     self.alpha = kwargs.get('alpha') if isinstance(kwargs.get('alpha'), numbers.Number) else DEFAULT_EIGENTRUST_ALPHA
-    self.epsilon = kwargs.get('epsilon') if isinstance(kwargs.get('epsilon'), numbers.Number) else DEFAULT_EIGENTRUST_EPSILON
-    self.max_iter = kwargs.get('max_iter') if isinstance(kwargs.get('max_iter'), numbers.Number) else DEFAULT_EIGENTRUST_MAX_ITER
-    self.flat_tail = kwargs.get('flat_tail') if isinstance(kwargs.get('flat_tail'), numbers.Number) else DEFAULT_EIGENTRUST_FLAT_TAIL
+    # self.epsilon = kwargs.get('epsilon') if isinstance(kwargs.get('epsilon'), numbers.Number) else DEFAULT_EIGENTRUST_EPSILON
+    # self.max_iter = kwargs.get('max_iter') if isinstance(kwargs.get('max_iter'), numbers.Number) else DEFAULT_EIGENTRUST_MAX_ITER
+    # self.flat_tail = kwargs.get('flat_tail') if isinstance(kwargs.get('flat_tail'), numbers.Number) else DEFAULT_EIGENTRUST_FLAT_TAIL
     self.go_eigentrust_host_url = kwargs.get('host_url') if isinstance(kwargs.get('host_url'), str) else DEFAULT_EIGENTRUST_HOST_URL
     self.go_eigentrust_timeout_ms = kwargs.get('timeout') if isinstance(kwargs.get('timeout'), numbers.Number) else DEFAULT_EIGENTRUST_TIMEOUT_MS
     self.api_key = kwargs.get('api_key') if isinstance(kwargs.get('api_key'), str) else ''
@@ -205,9 +202,9 @@ class EigenTrust:
         "entries": localtrust,
       },
       "alpha": self.alpha,
-      "epsilon": self.epsilon,
-      "max_iterations": self.max_iter,
-      "flatTail": self.flat_tail,
+      # "epsilon": self.epsilon,
+      # "max_iterations": self.max_iter,
+      # "flatTail": self.flat_tail,
     }
 
     start_time = time.perf_counter()
@@ -454,9 +451,6 @@ class EigenTrust:
     data = {
         'localtrust_id': localtrust_id,
         'alpha': self.alpha,
-        'epsilon': self.epsilon,
-        'max_iterations': self.max_iter,
-        'flatTail': self.flat_tail,
     }
     if pretrust_id:
       data['pretrust_id'] = pretrust_id
