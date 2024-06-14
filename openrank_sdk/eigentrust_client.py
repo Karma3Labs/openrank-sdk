@@ -5,8 +5,6 @@ import json
 import urllib3
 import logging
 import csv
-import os
-import gzip
 import io
 
 class IJV(TypedDict):
@@ -35,6 +33,21 @@ DEFAULT_EIGENTRUST_TIMEOUT_MS: int = 15 * 60 * 1000
 
 class EigenTrust:
   def __init__(self, **kwargs):
+    """
+    Initialize the EigenTrust class with optional parameters.
+
+    Args:
+        alpha (float): The alpha value for EigenTrust.
+        epsilon (float): The epsilon value for EigenTrust.
+        max_iter (int): The maximum number of iterations for EigenTrust.
+        flat_tail (int): The flat tail value for EigenTrust.
+        host_url (str): The host URL for the EigenTrust service.
+        timeout (int): The timeout value for the EigenTrust requests.
+        api_key (str): The API key for authentication.
+
+    Example:
+        et = EigenTrust(alpha=0.5, epsilon=1.0, max_iter=50, flat_tail=2, host_url="https://example.com", timeout=900000, api_key="your_api_key")
+    """
     self.alpha = kwargs.get('alpha') if isinstance(kwargs.get('alpha'), numbers.Number) else DEFAULT_EIGENTRUST_ALPHA
     self.epsilon = kwargs.get('epsilon') if isinstance(kwargs.get('epsilon'), numbers.Number) else DEFAULT_EIGENTRUST_EPSILON
     self.max_iter = kwargs.get('max_iter') if isinstance(kwargs.get('max_iter'), numbers.Number) else DEFAULT_EIGENTRUST_MAX_ITER
@@ -45,8 +58,22 @@ class EigenTrust:
     self.http = urllib3.PoolManager()
     logging.basicConfig(level=logging.INFO)
 
-  ## existing methods
   def run_eigentrust(self, localtrust: List[IJV], pretrust: List[IV]=None) -> List[Score]:
+    """
+    Run the EigenTrust algorithm using the provided local trust and pre-trust data.
+
+    Args:
+        localtrust (List[IJV]): List of local trust values.
+        pretrust (List[IV], optional): List of pre-trust values. Defaults to None.
+
+    Returns:
+        List[Score]: List of computed scores.
+
+    Example:
+        localtrust = [{'i': 'A', 'j': 'B', 'v': 0.5}, {'i': 'B', 'j': 'C', 'v': 0.6}]
+        pretrust = [{'i': 'A', 'v': 1.0}]
+        scores = et.run_eigentrust(localtrust, pretrust)
+    """
     start_time = time.perf_counter()
 
     lt = []
@@ -107,6 +134,19 @@ class EigenTrust:
     return addr_scores
 
   def run_eigentrust_from_csv(self, localtrust_filename: str, pretrust_filename: str = None) -> List[Score]:
+    """
+    Run the EigenTrust algorithm using local trust and pre-trust data from CSV files.
+
+    Args:
+        localtrust_filename (str): The filename of the local trust CSV file.
+        pretrust_filename (str, optional): The filename of the pre-trust CSV file. Defaults to None.
+
+    Returns:
+        List[Score]: List of computed scores.
+
+    Example:
+        scores = et.run_eigentrust_from_csv('localtrust.csv', 'pretrust.csv')
+    """
     localtrust = []
     with open(localtrust_filename, "r") as f:
       reader = csv.reader(f, delimiter=",")
@@ -138,6 +178,21 @@ class EigenTrust:
     localtrust: list[dict],
     max_lt_id: int,
   ):
+    """
+    Send a request to the EigenTrust service to compute scores.
+
+    Args:
+        pretrust (list[dict]): List of pre-trust values.
+        max_pt_id (int): The maximum pre-trust ID.
+        localtrust (list[dict]): List of local trust values.
+        max_lt_id (int): The maximum local trust ID.
+
+    Returns:
+        List[dict]: List of computed scores.
+
+    Example:
+        scores = self._send_go_eigentrust_req(pretrust, max_pt_id, localtrust, max_lt_id)
+    """
     req = {
       "pretrust": {
         "scheme": 'inline',
@@ -183,6 +238,17 @@ class EigenTrust:
     logging.debug(f"go-eigentrust took {time.perf_counter() - start_time} secs ")
 
   def export_scores_to_csv(self, scores: List[Score], filepath: str, headers: List[str]):
+    """
+    Export the computed scores to a CSV file.
+
+    Args:
+        scores (List[Score]): List of computed scores.
+        filepath (str): The path to the output CSV file.
+        headers (List[str]): List of CSV headers.
+
+    Example:
+        et.export_scores_to_csv(scores, 'scores.csv', ['i', 'v'])
+    """
     with open(filepath, 'w', newline='') as csvfile:
       writer = csv.writer(csvfile, delimiter=',')
       for line in scores:
@@ -200,6 +266,20 @@ class EigenTrust:
     is_private: bool,
     api_key: str,
   ):
+    """
+    Export a CSV file to the Dune Analytics platform.
+
+    Args:
+        filepath (str): The path to the CSV file.
+        headers (List[str]): List of CSV headers.
+        tablename (str): The name of the table on Dune Analytics.
+        description (str): Description of the table.
+        is_private (bool): Whether the table is private.
+        api_key (str): The API key for Dune Analytics.
+
+    Example:
+        et.export_csv_to_dune('scores.csv', ['i', 'v'], 'my_table', 'Table description', False, 'your_api_key')
+    """
     csv_header = ""
     for h in headers:
       csv_header += f"{h},"
@@ -248,6 +328,22 @@ class EigenTrust:
 
   # New methods to interact with the backend server
   def _upload_csv(self, data: List[dict], headers: List[str], endpoint: str, overwrite: bool) -> str:
+    """
+    Upload CSV data to the backend server.
+
+    Args:
+        data (List[dict]): List of data to be uploaded.
+        headers (List[str]): List of CSV headers.
+        endpoint (str): The endpoint for the upload.
+        overwrite (bool): Whether to overwrite existing data.
+
+    Returns:
+        str: URL of the uploaded data.
+
+    Example:
+        data = [{'i': 'A', 'j': 'B', 'v': 0.5}, {'i': 'B', 'j': 'C', 'v': 0.6}]
+        url = et._upload_csv(data, ['i', 'j', 'v'], 'localtrust/123', True)
+    """
     # Create an in-memory file-like object for the CSV data
     csv_buffer = io.StringIO()
     writer = csv.writer(csv_buffer)
@@ -259,17 +355,11 @@ class EigenTrust:
     for item in data:
       writer.writerow(item.values())
 
-    # # Compress the CSV data using gzip
-    # compressed = io.BytesIO()
-    # with gzip.GzipFile(fileobj=compressed, mode='wb') as gz:
-    #   gz.write(csv_buffer.getvalue().encode('utf-8'))
-
-    # Send the compressed data to the server
+    # Send the CSV data to the server
     response = self.http.request(
       'POST',
       f'{self.go_eigentrust_host_url}/upload/{endpoint}?overwrite={overwrite}',
       headers={'Content-Type': 'text/csv'},
-      # body=compressed.getvalue()
       body=csv_buffer.getvalue().encode('utf-8'),
     )
 
@@ -279,6 +369,18 @@ class EigenTrust:
     return f'{self.go_eigentrust_host_url}/download/{endpoint}'
 
   def _download_csv(self, endpoint: str) -> List[dict]:
+    """
+    Download CSV data from the backend server.
+
+    Args:
+        endpoint (str): The endpoint for the download.
+
+    Returns:
+        List[dict]: List of downloaded data.
+
+    Example:
+        data = et._download_csv('localtrust/123')
+    """
     response = self.http.request(
       'GET',
       f'{self.go_eigentrust_host_url}/download/{endpoint}',
@@ -291,15 +393,64 @@ class EigenTrust:
     return [row for row in reader]
 
   def _convert_to_ijv(self, data: List[dict]) -> List[IJV]:
+    """
+    Convert a list of dictionaries to a list of IJV objects.
+
+    Args:
+        data (List[dict]): List of data to be converted.
+
+    Returns:
+        List[IJV]: List of IJV objects.
+
+    Example:
+        ijv_list = et._convert_to_ijv(data)
+    """
     return [{'i': row['i'], 'j': row['j'], 'v': float(row['v'])} for row in data]
 
   def _convert_to_iv(self, data: List[dict]) -> List[IV]:
+    """
+    Convert a list of dictionaries to a list of IV objects.
+
+    Args:
+        data (List[dict]): List of data to be converted.
+
+    Returns:
+        List[IV]: List of IV objects.
+
+    Example:
+        iv_list = et._convert_to_iv(data)
+    """
     return [{'i': row['i'], 'v': float(row['v'])} for row in data]
 
   def _convert_to_score(self, data: List[dict]) -> List[Score]:
+    """
+    Convert a list of dictionaries to a list of Score objects.
+
+    Args:
+        data (List[dict]): List of data to be converted.
+
+    Returns:
+        List[Score]: List of Score objects.
+
+    Example:
+        score_list = et._convert_to_score(data)
+    """
     return [{'i': row['i'], 'v': float(row['v'])} for row in data]
 
   def run_eigentrust_from_id(self, localtrust_id: str, pretrust_id: str = None) -> Tuple[List[Score], str]:
+    """
+    Run the EigenTrust algorithm using local trust and pre-trust data identified by their IDs.
+
+    Args:
+        localtrust_id (str): The ID of the local trust data.
+        pretrust_id (str, optional): The ID of the pre-trust data. Defaults to None.
+
+    Returns:
+        Tuple[List[Score], str]: List of computed scores and the URL of the results.
+
+    Example:
+        scores, url = et.run_eigentrust_from_id('localtrust123', 'pretrust123')
+    """
     data = {
         'localtrust_id': localtrust_id,
         'alpha': self.alpha,
@@ -325,33 +476,139 @@ class EigenTrust:
     return scores
 
   def run_and_publish_eigentrust_from_id(self, id: str, localtrust_id: str, pretrust_id: str = None, **kwargs) -> Tuple[List[Score], str]:
+    """
+    Run the EigenTrust algorithm using local trust and pre-trust data identified by their IDs,
+    and publish the results.
+
+    Args:
+        id (str): The ID for publishing the results.
+        localtrust_id (str): The ID of the local trust data.
+        pretrust_id (str, optional): The ID of the pre-trust data. Defaults to None.
+
+    Returns:
+        Tuple[List[Score], str]: List of computed scores and the URL of the published results.
+
+    Example:
+        scores, publish_url = et.run_and_publish_eigentrust_from_id('result123', 'localtrust123', 'pretrust123')
+    """
     scores = self.run_eigentrust_from_id(localtrust_id, pretrust_id)
     publish_url = self.publish_eigentrust(id, scores, **kwargs)
     return scores, publish_url
 
   def run_and_publish_eigentrust(self, id: str, localtrust: List[IJV], pretrust: List[IV] = None, **kwargs) -> Tuple[List[Score], str]:
+    """
+    Run the EigenTrust algorithm using local trust and pre-trust data, and publish the results.
+
+    Args:
+        id (str): The ID for publishing the results.
+        localtrust (List[IJV]): List of local trust values.
+        pretrust (List[IV], optional): List of pre-trust values. Defaults to None.
+
+    Returns:
+        Tuple[List[Score], str]: List of computed scores and the URL of the published results.
+
+    Example:
+        localtrust = [{'i': 'A', 'j': 'B', 'v': 0.5}, {'i': 'B', 'j': 'C', 'v': 0.6}]
+        pretrust = [{'i': 'A', 'v': 1.0}]
+        scores, publish_url = et.run_and_publish_eigentrust('result123', localtrust, pretrust)
+    """
     overwrite = kwargs.get('overwrite', False)
     scores = self.run_eigentrust(localtrust, pretrust)
     publish_url = self.publish_eigentrust(id, scores, overwrite=overwrite)
     return scores, publish_url
 
   def publish_eigentrust(self, id: str, result: List[Score], **kwargs) -> str:
+    """
+    Publish the EigenTrust results.
+
+    Args:
+        id (str): The ID for publishing the results.
+        result (List[Score]): List of computed scores.
+
+    Returns:
+        str: URL of the published results.
+
+    Example:
+        url = et.publish_eigentrust('result123', scores)
+    """
     overwrite = kwargs.get('overwrite', False)
     return self._upload_csv(result, SCORE_CSV_HEADERS, f'eigentrust/{id}', overwrite)
 
   def fetch_eigentrust(self, id: str, **kwargs) -> List[Score]:
+    """
+    Fetch the EigenTrust results by ID.
+
+    Args:
+        id (str): The ID of the results to fetch.
+
+    Returns:
+        List[Score]: List of fetched scores.
+
+    Example:
+        scores = et.fetch_eigentrust('result123')
+    """
     return self._convert_to_score(self._download_csv(f'eigentrust/{id}'))
 
   def publish_localtrust(self, id: str, result: List[IJV], **kwargs) -> str:
+    """
+    Publish the local trust data.
+
+    Args:
+        id (str): The ID for publishing the local trust data.
+        result (List[IJV]): List of local trust values.
+
+    Returns:
+        str: URL of the published local trust data.
+
+    Example:
+        url = et.publish_localtrust('localtrust123', localtrust)
+    """
     overwrite = kwargs.get('overwrite', False)
     return self._upload_csv(result, IJV_CSV_HEADERS, f'localtrust/{id}', overwrite)
 
   def fetch_localtrust(self, id: str, **kwargs) -> List[IJV]:
+    """
+    Fetch the local trust data by ID.
+
+    Args:
+        id (str): The ID of the local trust data to fetch.
+
+    Returns:
+        List[IJV]: List of fetched local trust values.
+
+    Example:
+        localtrust = et.fetch_localtrust('localtrust123')
+    """
     return self._convert_to_ijv(self._download_csv(f'localtrust/{id}'))
 
   def publish_pretrust(self, id: str, result: List[IV], **kwargs) -> str:
+    """
+    Publish the pre-trust data.
+
+    Args:
+        id (str): The ID for publishing the pre-trust data.
+        result (List[IV]): List of pre-trust values.
+
+    Returns:
+        str: URL of the published pre-trust data.
+
+    Example:
+        url = et.publish_pretrust('pretrust123', pretrust)
+    """
     overwrite = kwargs.get('overwrite', False)
     return self._upload_csv(result, IV_CSV_HEADERS, f'pretrust/{id}', overwrite)
 
   def fetch_pretrust(self, id: str, **kwargs) -> List[IV]:
+    """
+    Fetch the pre-trust data by ID.
+
+    Args:
+        id (str): The ID of the pre-trust data to fetch.
+
+    Returns:
+        List[IV]: List of fetched pre-trust values.
+
+    Example:
+        pretrust = et.fetch_pretrust('pretrust123')
+    """
     return self._convert_to_iv(self._download_csv(f'pretrust/{id}'))
