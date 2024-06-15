@@ -1,8 +1,17 @@
 # OpenRank SDK
 
 ## EigenTrust by OpenRank
-EigenTrust is powered by [Karma3Labs/GoEigentrust](https://github.com/Karma3Labs/go-eigentrust)
+EigenTrust is powered by [Karma3Labs/GoEigentrust](https://github.com/Karma3Labs/go-eigentrust). Documentation for the openrank API [can be found here](https://docs.openrank.com/).
 
+### Installation
+
+Get started by installing the package in your environment
+
+```
+pip install openrank-sdk
+```
+
+You can learn how to build your own openrank graphs using the [jupyter notebook linked here](https://github.com/Karma3Labs/openrank-sdk/blob/main/openrank_example.ipynb). Alternatively, you can play with the notebook [directly on hex.tech](https://app.hex.tech/e8198fd2-0779-4dff-a368-06371d3af467/hex/fa721eba-e774-4036-bda1-52323202ef9a/draft/logic?view=notebook).
 
 ### Input
 
