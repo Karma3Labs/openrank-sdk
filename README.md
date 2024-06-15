@@ -1,7 +1,7 @@
 # OpenRank SDK
 
 ## EigenTrust by OpenRank
-EigenTrust is powered by [Karma3Labs/GoEigentrust](https://github.com/Karma3Labs/go-eigentrust)
+EigenTrust is powered by [Karma3Labs/GoEigentrust](https://github.com/Karma3Labs/go-eigentrust). Documentation for the openrank API [can be found here](https://docs.openrank.com/).
 
 ### Installation
 
