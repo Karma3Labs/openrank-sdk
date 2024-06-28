@@ -41,6 +41,8 @@ class EigenTrust:
         host_url (str): The host URL for the EigenTrust service.
         timeout (int): The timeout value for the EigenTrust requests.
         api_key (str): The API key for authentication.
+        aws_access_key (str): The AWS access key for authentication.
+        aws_secret_key (str): The AWS secret key for authentication.
 
     Example:
         et = EigenTrust(alpha=0.5, epsilon=1.0, max_iter=50, flat_tail=2, host_url="https://example.com", timeout=900000, api_key="your_api_key")
@@ -190,18 +192,27 @@ class EigenTrust:
     Example:
         scores = self._send_go_eigentrust_req(pretrust, max_pt_id, localtrust, max_lt_id)
     """
+    pretrust = {
+      "scheme": 'inline',
+      "size": int(max_pt_id)+1, #np.int64 doesn't serialize; cast to int
+      "entries": pretrust,
+    }
+    local_trust = {
+      "scheme": 'inline',
+      "size": int(max_lt_id)+1, #np.int64 doesn't serialize; cast to int
+      "entries": localtrust,
+    }
+    # upload pretrust and local_trust to S3 bucekt as ephemeral files
     req = {
+      "alpha": self.alpha,
       "pretrust": {
-        "scheme": 'inline',
-        "size": int(max_pt_id)+1, #np.int64 doesn't serialize; cast to int
-        "entries": pretrust,
+        "scheme": "s3",
+        "path": "s3://bucket/ephemeral-file-name.json"
       },
       "localTrust": {
-        "scheme": 'inline',
-        "size": int(max_lt_id)+1, #np.int64 doesn't serialize; cast to int
-        "entries": localtrust,
+        "scheme": "s3",
+        "path": "s3://bucket/ephemeral-file-name.json"
       },
-      "alpha": self.alpha,
       # "epsilon": self.epsilon,
       # "max_iterations": self.max_iter,
       # "flatTail": self.flat_tail,
