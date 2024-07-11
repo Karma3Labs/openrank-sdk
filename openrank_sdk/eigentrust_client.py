@@ -467,7 +467,7 @@ class EigenTrust:
                 f"Failed to download CSV: {response.data.decode('utf-8')}")
         data = response.data.decode('utf-8').splitlines()
         reader = csv.DictReader(data)
-        return [row for row in reader]
+        return list(reader)
 
     @staticmethod
     def _convert_to_ijv(data: List[dict]) -> List[IJV]:
