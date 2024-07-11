@@ -315,6 +315,7 @@ class EigenTrust:
             for line in scores:
                 item = []
                 for h in headers:
+                    # noinspection PyTypedDict
                     item.append(line[h])
                 writer.writerow(item)
 
