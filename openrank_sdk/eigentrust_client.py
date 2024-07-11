@@ -111,11 +111,11 @@ class EigenTrust:
         lt = []
         for entry in localtrust:
             if entry['v'] <= 0.0:
-                logging.warn(
+                logging.warning(
                     f"v cannot be less than or equal to 0, "
                     f"skipping this entry: {entry}")
             elif entry['i'] == entry['j']:
-                logging.warn(
+                logging.warning(
                     f"i and j cannot be same, skipping this entry: {entry}")
             else:
                 lt.append(entry)
@@ -146,11 +146,11 @@ class EigenTrust:
             pt = []
             for p in pretrust:
                 if p['v'] <= 0.0:
-                    logging.warn(
+                    logging.warning(
                         f"v cannot be less than or equal to 0, "
                         f"skipping this entry: {p}")
                 elif not p['i'] in addresses:
-                    logging.warn(
+                    logging.warning(
                         f"i entry not found in localtrust, "
                         f"skipping this entry: {p}")
                 else:
