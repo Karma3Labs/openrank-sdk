@@ -639,7 +639,7 @@ class EigenTrust:
         return self._upload_csv(result, SCORE_CSV_HEADERS,
                                 f'eigentrust/{id_}', overwrite)
 
-    def fetch_eigentrust(self, id_: str, **kwargs) -> List[Score]:
+    def fetch_eigentrust(self, id_: str, **_) -> List[Score]:
         """
         Fetch the EigenTrust results by ID.
 
@@ -673,7 +673,7 @@ class EigenTrust:
         return self._upload_csv(result, IJV_CSV_HEADERS,
                                 f'localtrust/{id_}', overwrite)
 
-    def fetch_localtrust(self, id_: str, **kwargs) -> List[IJV]:
+    def fetch_localtrust(self, id_: str, **_) -> List[IJV]:
         """
         Fetch the local trust data by ID.
 
@@ -706,7 +706,7 @@ class EigenTrust:
         return self._upload_csv(result, IV_CSV_HEADERS,
                                 f'pretrust/{id_}', overwrite)
 
-    def fetch_pretrust(self, id_: str, **kwargs) -> List[IV]:
+    def fetch_pretrust(self, id_: str, **_) -> List[IV]:
         """
         Fetch the pre-trust data by ID.
 
