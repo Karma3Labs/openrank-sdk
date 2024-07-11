@@ -1,5 +1,6 @@
 import json
 import logging
+import sys
 import time
 from typing import List
 
@@ -54,21 +55,27 @@ def get_token_transfer_neighbors(
         f"get-p2p-neighbors took {time.perf_counter() - start_time} secs ")
 
 
-example_address = '0xf68d2bfcecd7895bba05a7451dd09a1749026454'
-lim_num_neighbors = 200
-hops = 2
-neighbors = get_token_transfer_neighbors(
-    [example_address], hops, lim_num_neighbors)
-neighbors = [{'i': n['address'], 'v': n['score']} for n in neighbors]
-headers = ['i', 'v']
+def main():
+    example_address = '0xf68d2bfcecd7895bba05a7451dd09a1749026454'
+    lim_num_neighbors = 200
+    hops = 2
+    neighbors = get_token_transfer_neighbors(
+        [example_address], hops, lim_num_neighbors)
+    neighbors = [{'i': n['address'], 'v': n['score']} for n in neighbors]
+    headers = ['i', 'v']
 
-sdk = EigenTrust()
+    sdk = EigenTrust()
 
-dune_table_name = f'openrank_op_token_txfr_{example_address}'
-export_path = f'./examples/{dune_table_name}.csv'
-description = (f'This is a list of addresses with their OpenRank scores '
-               f'based on the token transfer to address for the given users. '
-               f'hops={hops}, lim_num_neighbors={lim_num_neighbors}')
-sdk.export_scores_to_csv(neighbors, export_path, headers)
-sdk.export_csv_to_dune(export_path, headers, dune_table_name,
-                       description, False, DUNE_API_KEY)
+    dune_table_name = f'openrank_op_token_txfr_{example_address}'
+    export_path = f'./examples/{dune_table_name}.csv'
+    description = (f'This is a list of addresses with their OpenRank scores '
+                   f'based on the token transfer to address for the given '
+                   f'users. '
+                   f'hops={hops}, lim_num_neighbors={lim_num_neighbors}')
+    sdk.export_scores_to_csv(neighbors, export_path, headers)
+    sdk.export_csv_to_dune(export_path, headers, dune_table_name,
+                           description, False, DUNE_API_KEY)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
