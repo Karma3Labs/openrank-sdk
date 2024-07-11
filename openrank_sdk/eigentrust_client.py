@@ -296,8 +296,9 @@ class EigenTrust:
         logging.debug(
             f"go-eigentrust took {time.perf_counter() - start_time} secs ")
 
+    @staticmethod
     def export_scores_to_csv(
-            self, scores: List[Score], filepath: str, headers: List[str]):
+            scores: List[Score], filepath: str, headers: List[str]):
         """
         Export the computed scores to a CSV file.
 
@@ -468,7 +469,8 @@ class EigenTrust:
         reader = csv.DictReader(data)
         return [row for row in reader]
 
-    def _convert_to_ijv(self, data: List[dict]) -> List[IJV]:
+    @staticmethod
+    def _convert_to_ijv(data: List[dict]) -> List[IJV]:
         """
         Convert a list of dictionaries to a list of IJV objects.
 
@@ -484,7 +486,8 @@ class EigenTrust:
         return [{'i': row['i'], 'j': row['j'],
                  'v': float(row['v'])} for row in data]
 
-    def _convert_to_iv(self, data: List[dict]) -> List[IV]:
+    @staticmethod
+    def _convert_to_iv(data: List[dict]) -> List[IV]:
         """
         Convert a list of dictionaries to a list of IV objects.
 
@@ -499,7 +502,8 @@ class EigenTrust:
         """
         return [{'i': row['i'], 'v': float(row['v'])} for row in data]
 
-    def _convert_to_score(self, data: List[dict]) -> List[Score]:
+    @staticmethod
+    def _convert_to_score(data: List[dict]) -> List[Score]:
         """
         Convert a list of dictionaries to a list of Score objects.
 
