@@ -1,11 +1,11 @@
-from openrank_sdk import EigenTrust
-from typing import List, TypedDict
-import time
-
 import json
-import urllib3
 import logging
-import csv
+import time
+from typing import List
+
+import urllib3
+
+from openrank_sdk import EigenTrust
 
 GET_NEIGHBORS_URL = ('https://scq1uugv7g.execute-api.us-west-2.amazonaws.com'
                      '/prod')

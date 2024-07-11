@@ -1,11 +1,12 @@
-from typing import List, Tuple, TypedDict
-import numbers
-import time
-import json
-import urllib3
-import logging
 import csv
 import io
+import json
+import logging
+import numbers
+import time
+from typing import List, Tuple, TypedDict
+
+import urllib3
 
 
 class IJV(TypedDict):
