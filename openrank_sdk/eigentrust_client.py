@@ -562,7 +562,7 @@ class EigenTrust:
         return scores
 
     def run_and_publish_eigentrust_from_id(
-            self, id: str, localtrust_id: str, pretrust_id: str = None,
+            self, id_: str, localtrust_id: str, pretrust_id: str = None,
             **kwargs,
     ) -> Tuple[List[Score], str]:
         """
@@ -570,7 +570,7 @@ class EigenTrust:
         identified by their IDs, and publish the results.
 
         Args:
-            id (str): The ID for publishing the results.
+            id_ (str): The ID for publishing the results.
             localtrust_id (str): The ID of the local trust data.
             pretrust_id (str, optional):
                 The ID of the pre-trust data. Defaults to None.
@@ -584,11 +584,11 @@ class EigenTrust:
                 'result123', 'localtrust123', 'pretrust123')
         """
         scores = self.run_eigentrust_from_id(localtrust_id, pretrust_id)
-        publish_url = self.publish_eigentrust(id, scores, **kwargs)
+        publish_url = self.publish_eigentrust(id_, scores, **kwargs)
         return scores, publish_url
 
     def run_and_publish_eigentrust(
-            self, id: str, localtrust: List[IJV], pretrust: List[IV] = None,
+            self, id_: str, localtrust: List[IJV], pretrust: List[IV] = None,
             **kwargs,
     ) -> Tuple[List[Score], str]:
         """
@@ -596,7 +596,7 @@ class EigenTrust:
         and publish the results.
 
         Args:
-            id (str): The ID for publishing the results.
+            id_ (str): The ID for publishing the results.
             localtrust (List[IJV]): List of local trust values.
             pretrust (List[IV], optional):
                 List of pre-trust values. Defaults to None.
@@ -616,17 +616,17 @@ class EigenTrust:
         """
         overwrite = kwargs.get('overwrite', False)
         scores = self.run_eigentrust(localtrust, pretrust)
-        publish_url = self.publish_eigentrust(id, scores,
+        publish_url = self.publish_eigentrust(id_, scores,
                                               overwrite=overwrite)
         return scores, publish_url
 
     def publish_eigentrust(
-            self, id: str, result: List[Score], **kwargs) -> str:
+            self, id_: str, result: List[Score], **kwargs) -> str:
         """
         Publish the EigenTrust results.
 
         Args:
-            id (str): The ID for publishing the results.
+            id_ (str): The ID for publishing the results.
             result (List[Score]): List of computed scores.
 
         Returns:
@@ -637,14 +637,14 @@ class EigenTrust:
         """
         overwrite = kwargs.get('overwrite', False)
         return self._upload_csv(result, SCORE_CSV_HEADERS,
-                                f'eigentrust/{id}', overwrite)
+                                f'eigentrust/{id_}', overwrite)
 
-    def fetch_eigentrust(self, id: str, **kwargs) -> List[Score]:
+    def fetch_eigentrust(self, id_: str, **kwargs) -> List[Score]:
         """
         Fetch the EigenTrust results by ID.
 
         Args:
-            id (str): The ID of the results to fetch.
+            id_ (str): The ID of the results to fetch.
 
         Returns:
             List[Score]: List of fetched scores.
@@ -652,15 +652,15 @@ class EigenTrust:
         Example:
             scores = et.fetch_eigentrust('result123')
         """
-        return self._convert_to_score(self._download_csv(f'eigentrust/{id}'))
+        return self._convert_to_score(self._download_csv(f'eigentrust/{id_}'))
 
     def publish_localtrust(
-            self, id: str, result: List[IJV], **kwargs) -> str:
+            self, id_: str, result: List[IJV], **kwargs) -> str:
         """
         Publish the local trust data.
 
         Args:
-            id (str): The ID for publishing the local trust data.
+            id_ (str): The ID for publishing the local trust data.
             result (List[IJV]): List of local trust values.
 
         Returns:
@@ -671,14 +671,14 @@ class EigenTrust:
         """
         overwrite = kwargs.get('overwrite', False)
         return self._upload_csv(result, IJV_CSV_HEADERS,
-                                f'localtrust/{id}', overwrite)
+                                f'localtrust/{id_}', overwrite)
 
-    def fetch_localtrust(self, id: str, **kwargs) -> List[IJV]:
+    def fetch_localtrust(self, id_: str, **kwargs) -> List[IJV]:
         """
         Fetch the local trust data by ID.
 
         Args:
-            id (str): The ID of the local trust data to fetch.
+            id_ (str): The ID of the local trust data to fetch.
 
         Returns:
             List[IJV]: List of fetched local trust values.
@@ -686,14 +686,14 @@ class EigenTrust:
         Example:
             localtrust = et.fetch_localtrust('localtrust123')
         """
-        return self._convert_to_ijv(self._download_csv(f'localtrust/{id}'))
+        return self._convert_to_ijv(self._download_csv(f'localtrust/{id_}'))
 
-    def publish_pretrust(self, id: str, result: List[IV], **kwargs) -> str:
+    def publish_pretrust(self, id_: str, result: List[IV], **kwargs) -> str:
         """
         Publish the pre-trust data.
 
         Args:
-            id (str): The ID for publishing the pre-trust data.
+            id_ (str): The ID for publishing the pre-trust data.
             result (List[IV]): List of pre-trust values.
 
         Returns:
@@ -704,14 +704,14 @@ class EigenTrust:
         """
         overwrite = kwargs.get('overwrite', False)
         return self._upload_csv(result, IV_CSV_HEADERS,
-                                f'pretrust/{id}', overwrite)
+                                f'pretrust/{id_}', overwrite)
 
-    def fetch_pretrust(self, id: str, **kwargs) -> List[IV]:
+    def fetch_pretrust(self, id_: str, **kwargs) -> List[IV]:
         """
         Fetch the pre-trust data by ID.
 
         Args:
-            id (str): The ID of the pre-trust data to fetch.
+            id_ (str): The ID of the pre-trust data to fetch.
 
         Returns:
             List[IV]: List of fetched pre-trust values.
@@ -719,4 +719,4 @@ class EigenTrust:
         Example:
             pretrust = et.fetch_pretrust('pretrust123')
         """
-        return self._convert_to_iv(self._download_csv(f'pretrust/{id}'))
+        return self._convert_to_iv(self._download_csv(f'pretrust/{id_}'))
