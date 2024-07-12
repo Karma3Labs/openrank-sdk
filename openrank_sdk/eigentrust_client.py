@@ -1,9 +1,13 @@
 import csv
+import enum
 import io
 import json
 import logging
+import math
 import numbers
 import time
+import warnings
+from collections.abc import Callable
 from typing import List, Tuple, TypedDict
 
 import urllib3
@@ -39,6 +43,43 @@ DEFAULT_EIGENTRUST_ALPHA: float = 0.5
 # DEFAULT_EIGENTRUST_FLAT_TAIL: int = 2
 DEFAULT_EIGENTRUST_HOST_URL: str = "https://openrank-sdk-api.k3l.io"
 DEFAULT_EIGENTRUST_TIMEOUT_MS: int = 15 * 60 * 1000
+
+
+class ScoreScale(enum.Enum):
+    """EigenTrust score scale."""
+    LEGACY = 'legacy'
+    """Legacy behavior (default).
+
+    Behaves same as `RAW` but emits a deprecation warning until the default
+    changes to `LOG`."""
+
+    RAW = 'raw'
+    """Raw EigenTrust score value in [0..1] range.
+
+    The number represents the peer's share of the overall trust circulating
+    in the network, e.g. 0.1 means 10% of the total trust is bestowed
+    on the peer.
+    """
+
+    PERCENT = 'percent'
+    """Same as `RAW` but in percents, in [0..100] range."""
+
+    LOG = 'log'
+    """Log distance from the full trust, in [0..inf] range.
+
+    Defined as `log(raw_value, 0.1)-1`, this represents the distance from
+    the full trust: 0/1/2/3/... represents 100%/10%/1%/0.1%/... of the total
+    trust circulating in the network.  Lower distance means higher trust.
+
+    Score values in this scale tend to form a bell curve.
+    """
+
+
+_SCORE_SCALERS: dict[ScoreScale, Callable[[float], float]] = {
+    ScoreScale.RAW: lambda v: v,
+    ScoreScale.PERCENT: lambda v: v * 100,
+    ScoreScale.LOG: lambda v: math.log(v, 0.1) - 1,
+}
 
 
 class EigenTrust:
@@ -84,7 +125,8 @@ class EigenTrust:
         logging.basicConfig(level=logging.INFO)
 
     def run_eigentrust(
-            self, localtrust: List[IJV], pretrust: List[IV] = None,
+            self, localtrust: List[IJV], pretrust: List[IV] = None, *,
+            scale: ScoreScale | str = ScoreScale.LEGACY,
     ) -> List[Score]:
         """
         Run the EigenTrust algorithm using the provided local trust and
@@ -94,6 +136,8 @@ class EigenTrust:
             localtrust (List[IJV]): List of local trust values.
             pretrust (List[IV], optional): List of pre-trust values. Defaults
             to None.
+            scale (ScoreScale): How to scale the output scores.  See
+            `ScoreScale` documentation for details.
 
         Returns:
             List[Score]: List of computed scores.
@@ -106,6 +150,17 @@ class EigenTrust:
             pretrust = [{'i': 'A', 'v': 1.0}]
             scores = et.run_eigentrust(localtrust, pretrust)
         """
+        scale = ScoreScale(scale)
+        if scale == ScoreScale.LEGACY:
+            warnings.warn(
+                "Defaulting to the 'raw' score scale. "
+                "The default scale will change to 'log' in a future version; "
+                "add score='raw' to keep the current behavior "
+                "(and silence this warning)"
+            )
+            scale = ScoreScale.RAW
+        scaler = _SCORE_SCALERS[scale]
+        reverse = scale != ScoreScale.LOG
         start_time = time.perf_counter()
 
         lt = []
@@ -172,11 +227,12 @@ class EigenTrust:
                                                 localtrust=localtrust,
                                                 max_lt_id=max_id)
 
-        addr_scores = [{'i': int_to_addr_map[i_score['i']],
-                        'v': i_score['v']} for i_score in i_scores]
+        addr_scores = sorted(({'i': int_to_addr_map[i_score['i']],
+                               'v': scaler(i_score['v'])}
+                              for i_score in i_scores),
+                             key=lambda x: x['v'], reverse=reverse)
         logging.info(f"eigentrust compute took "
                      f"{time.perf_counter() - start_time} secs")
-        addr_scores.sort(key=lambda x: x['v'], reverse=True)
         return addr_scores
 
     def run_eigentrust_from_csv(
