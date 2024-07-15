@@ -39,7 +39,11 @@ print(scores)
 scores = a.run_eigentrust_from_csv('examples/lt.csv', 'examples/pt.csv')
 print(scores)
 
-a = EigenTrust(host_url='https://openrank-sdk-api.k3l.io', api_key=api_key, alpha=0.01)
+scores = a.run_eigentrust_from_s3('examples/lt.csv', 'examples/pt.csv')
+print(scores)
+
+a = EigenTrust(host_url='https://openrank-sdk-api.k3l.io',
+               api_key=api_key, alpha=0.01)
 scores = a.run_eigentrust_from_csv('examples/lt.csv', 'examples/pt.csv')
 print(scores)
 eigentrust_id = 'demo-1'
