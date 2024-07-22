@@ -5,10 +5,14 @@ import json
 import logging
 import math
 import numbers
+import os
+import random
+import string
 import time
 import warnings
 from collections.abc import Callable
-from typing import List, Tuple, TypedDict
+from datetime import datetime
+from typing import List, Literal, Tuple, TypedDict
 
 import urllib3
 
@@ -43,6 +47,8 @@ DEFAULT_EIGENTRUST_ALPHA: float = 0.5
 # DEFAULT_EIGENTRUST_FLAT_TAIL: int = 2
 DEFAULT_EIGENTRUST_HOST_URL: str = "https://openrank-sdk-api.k3l.io"
 DEFAULT_EIGENTRUST_TIMEOUT_MS: int = 15 * 60 * 1000
+DEFAULT_S3_BUCKET: str = "openrank-sdk-dev-cache"
+SchemaType = Literal["inline", "objectstorage"]
 
 
 class ScoreScale(enum.Enum):
@@ -98,6 +104,7 @@ class EigenTrust:
                             host_url="https://example.com", timeout=900000,
                             api_key="your_api_key")
         """
+
         self.alpha = kwargs.get('alpha') if isinstance(kwargs.get(
             'alpha'), numbers.Number) else DEFAULT_EIGENTRUST_ALPHA
         # self.epsilon = (
@@ -122,7 +129,17 @@ class EigenTrust:
         self.api_key = kwargs.get('api_key') if isinstance(
             kwargs.get('api_key'), str) else ''
         self.http = urllib3.PoolManager()
+        self.s3_bucket = (kwargs.get('s3_bucket')
+                          if isinstance(kwargs.get('s3_bucket'), str)
+                          else DEFAULT_S3_BUCKET)
+
         logging.basicConfig(level=logging.INFO)
+
+    @staticmethod
+    def normalize_trust(
+            localtrust: List[IJV], pretrust: List[IV] = None,
+    ) -> [List[Score], List[Score]]:
+        return localtrust, pretrust
 
     def run_eigentrust(
             self, localtrust: List[IJV], pretrust: List[IV] = None, *,
@@ -235,26 +252,9 @@ class EigenTrust:
                      f"{time.perf_counter() - start_time} secs")
         return addr_scores
 
-    def run_eigentrust_from_csv(
+    def _read_scores_from_csv(
             self, localtrust_filename: str, pretrust_filename: str = None,
-    ) -> List[Score]:
-        """
-        Run the EigenTrust algorithm using local trust and pre-trust data
-        from CSV files.
-
-        Args:
-            localtrust_filename (str):
-                The filename of the local trust CSV file.
-            pretrust_filename (str, optional):
-                The filename of the pre-trust CSV file. Defaults to None.
-
-        Returns:
-            List[Score]: List of computed scores.
-
-        Example:
-            scores = et.run_eigentrust_from_csv('localtrust.csv',
-                                                'pretrust.csv')
-        """
+    ) -> [List[IJV], List[IV]]:
         localtrust = []
         with open(localtrust_filename, "r") as f:
             reader = csv.reader(f, delimiter=",")
@@ -277,6 +277,31 @@ class EigenTrust:
                         continue
                     pretrust.append({'i': str(i), 'v': float(v)})
 
+        return localtrust, pretrust
+
+    def run_eigentrust_from_csv(
+            self, localtrust_filename: str, pretrust_filename: str = None,
+    ) -> List[Score]:
+        """
+        Run the EigenTrust algorithm using local trust and pre-trust data
+        from CSV files.
+
+        Args:
+            localtrust_filename (str):
+                The filename of the local trust CSV file.
+            pretrust_filename (str, optional):
+                The filename of the pre-trust CSV file. Defaults to None.
+
+        Returns:
+            List[Score]: List of computed scores.
+
+        Example:
+            scores = et.run_eigentrust_from_csv('localtrust.csv',
+                                                'pretrust.csv')
+        """
+
+        localtrust, pretrust = self._read_scores_from_csv(localtrust_filename,
+                                                          pretrust_filename)
         return self.run_eigentrust(localtrust, pretrust)
 
     def _send_go_eigentrust_req(
@@ -285,6 +310,7 @@ class EigenTrust:
             max_pt_id: int,
             localtrust: list[dict],
             max_lt_id: int,
+            req: dict = None,
     ):
         """
         Send a request to the EigenTrust service to compute scores.
@@ -299,27 +325,27 @@ class EigenTrust:
             List[dict]: List of computed scores.
 
         Example:
-            scores = self._send_go_eigentrust_req(pretrust, max_pt_id,
-                                                  localtrust, max_lt_id)
+            scores = self._send_go_eigentrust_req(pretrust, max_pt_id, localtrust, max_lt_id)
         """
-        req = {
-            "pretrust": {
-                "scheme": 'inline',
-                # np.int64 doesn't serialize; cast to int
-                "size": int(max_pt_id) + 1,
-                "entries": pretrust,
-            },
-            "localTrust": {
-                "scheme": 'inline',
-                # np.int64 doesn't serialize; cast to int
-                "size": int(max_lt_id) + 1,
-                "entries": localtrust,
-            },
-            "alpha": self.alpha,
-            # "epsilon": self.epsilon,
-            # "max_iterations": self.max_iter,
-            # "flatTail": self.flat_tail,
-        }
+        if req is None:
+            req = {
+                "pretrust": {
+                    "scheme": 'inline',
+                    # np.int64 doesn't serialize; cast to int
+                    "size": int(max_pt_id) + 1,
+                    "entries": pretrust,
+                },
+                "localTrust": {
+                    "scheme": 'inline',
+                    # np.int64 doesn't serialize; cast to int
+                    "size": int(max_lt_id) + 1,
+                    "entries": localtrust,
+                },
+                "alpha": self.alpha,
+                # "epsilon": self.epsilon,
+                # "max_iterations": self.max_iter,
+                # "flatTail": self.flat_tail,
+            }
 
         start_time = time.perf_counter()
         try:
@@ -336,6 +362,7 @@ class EigenTrust:
                 body=encoded_data,
                 timeout=self.go_eigentrust_timeout_ms,
             )
+
             resp_dict = json.loads(response.data.decode('utf-8'))
 
             if response.status != 200:
@@ -449,6 +476,146 @@ class EigenTrust:
                 'error while sending a request to dune-upload-csv', e)
         logging.debug(
             f"dune-upload-csv took {time.perf_counter() - start_time} secs ")
+
+    def _save_dict_to_csv(self, data: list[dict], filename: str):
+        with open(filename, mode='w', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=data[0].keys())
+            writer.writeheader()
+            for row in data:
+                writer.writerow(row)
+
+    def run_eigentrust_from_s3(
+            self, localtrust_filename: str, pretrust_filename: str = None,
+    ) -> List[Score]:
+        start_time = time.perf_counter()
+        localtrust_tmp_filename = "localtrust-tmp.csv"
+        pretrust_tmp_filename = "pretrust-tmp.csv"
+
+        localtrust, pretrust = self._read_scores_from_csv(localtrust_filename,
+                                                          pretrust_filename)
+
+        lt = []
+        for entry in localtrust:
+            if entry['v'] <= 0.0:
+                logging.warning(f"v cannot be less than or equal to 0, "
+                                f"skipping this entry: {entry}")
+            elif entry['i'] == entry['j']:
+                logging.warning(f"i and j cannot be same, "
+                                f"skipping this entry: {entry}")
+            else:
+                lt.append(entry)
+        localtrust = lt
+
+        addresses = set()
+        for entry in localtrust:
+            addresses.add(entry["i"])
+            addresses.add(entry["j"])
+        if len(addresses) <= 0:
+            print(f"No edges found for {addresses}")
+            return []
+
+        addr_to_int_map = {}
+        int_to_addr_map = {}
+        for idx, addr in enumerate(addresses):
+            addr_to_int_map[addr] = idx
+            int_to_addr_map[idx] = addr
+
+        if not pretrust:
+            pt_len = len(addresses)
+            logging.debug(f"generating pretrust from localtrust "
+                          f"with equally weighted pretrusted value")
+            pretrust = [{'i': addr_to_int_map[addr], 'v': 1 / pt_len}
+                        for addr in addresses]
+        else:
+            pt = []
+            for p in pretrust:
+                if p['v'] <= 0.0:
+                    logging.warning(f"v cannot be less than or equal to 0, "
+                                    f"skipping this entry: {p}")
+                elif not p['i'] in addresses:
+                    logging.warning(f"i entry not found in localtrust, "
+                                    f"skipping this entry: {p}")
+                else:
+                    pt.append(p)
+            pretrust = pt
+            pretrust = [{'i': addr_to_int_map[p['i']], 'v': p['v']}
+                        for p in pretrust]
+
+        logging.debug(f"generating localtrust with "
+                      f"{len(addresses)} addresses")
+        localtrust = [{'i': addr_to_int_map[l['i']],
+                       'j': addr_to_int_map[l['j']],
+                       'v': l['v']}
+                      for l in localtrust]
+        max_id = len(addresses)
+
+        logging.debug("calling go_eigentrust")
+
+        self._save_dict_to_csv(localtrust, localtrust_tmp_filename)
+        if pretrust_filename is not None:
+            self._save_dict_to_csv(pretrust, pretrust_tmp_filename)
+
+        localtrust_s3 = self._upload_csv_to_s3(localtrust_tmp_filename)
+        if pretrust_filename is not None:
+            pretrust_s3 = self._upload_csv_to_s3(pretrust_tmp_filename)
+
+        req = {
+            "localTrust": {
+                "scheme": 'objectstorage',
+                "format": "csv",
+                "url": f"s3://{self.s3_bucket}/{localtrust_s3}",
+            },
+            "alpha": self.alpha,
+        }
+
+        if pretrust_filename is not None:
+            req["pretrust"] = {
+                "scheme": 'objectstorage',
+                "format": "csv",
+                "url": f"s3://{self.s3_bucket}/{pretrust_s3}",
+            }
+
+        i_scores = self._send_go_eigentrust_req(pretrust=pretrust,
+                                                max_pt_id=max_id,
+                                                localtrust=localtrust,
+                                                max_lt_id=max_id,
+                                                req=req,
+                                                )
+
+        addr_scores = [{'i': int_to_addr_map[i_score['i']], 'v': i_score['v']}
+                       for i_score in i_scores]
+        logging.info(f"eigentrust compute took "
+                     f"{time.perf_counter() - start_time} secs ")
+        addr_scores.sort(key=lambda x: x['v'], reverse=True)
+
+        os.remove(localtrust_tmp_filename)
+        if pretrust_filename is not None:
+            os.remove(pretrust_tmp_filename)
+
+        return addr_scores
+
+    def _upload_csv_to_s3(self, file_name) -> str:
+        if not file_name.lower().endswith('.csv'):
+            logging.error("Error: The file name must end with '.csv'.")
+            return
+
+        object_name = (
+                ''.join(random.choice(string.ascii_letters + string.digits)
+                        for _ in range(8)) +
+                '_' +
+                datetime.now().strftime("%Y%m%d_%H%M%S") +
+                '.csv'
+        )
+        s3_client = boto3.client('s3')
+
+        try:
+            s3_client.upload_file(file_name, self.s3_bucket, object_name)
+            logging.info(f"File {file_name} uploaded to "
+                         f"{self.s3_bucket}/{object_name} successfully.")
+        except Exception as e:
+            logging.error('error while sending a request to aws s3', e)
+
+        return object_name
 
     # New methods to interact with the backend server
     def _upload_csv(
