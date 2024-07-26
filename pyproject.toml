@@ -1,8 +1,12 @@
 [tool.poetry]
 name = "openrank-sdk"
-version = "0.0.14"
+version = "0.1.0"
 description = ""
-authors = ["SeungJu Lee <sj@karma3labs.com>"]
+authors = [
+    "SeungJu Lee <sj@karma3labs.com>",
+    "Eugene Kim <ek@karma3labs.com>",
+    "Jenya <hypnagonia@gmail.com>",
+]
 readme = "README.md"
 
 [tool.poetry.dependencies]
