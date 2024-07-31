@@ -12,7 +12,7 @@ import time
 import warnings
 from collections.abc import Callable
 from datetime import datetime
-from typing import List, Literal, Tuple, TypedDict
+from typing import List, Literal, Tuple, TypedDict, Union
 
 import urllib3
 
@@ -143,7 +143,7 @@ class EigenTrust:
 
     def run_eigentrust(
             self, localtrust: List[IJV], pretrust: List[IV] = None, *,
-            scale: ScoreScale | str = ScoreScale.LEGACY,
+            scale: Union[ScoreScale, str]= ScoreScale.LEGACY,
     ) -> List[Score]:
         """
         Run the EigenTrust algorithm using the provided local trust and
