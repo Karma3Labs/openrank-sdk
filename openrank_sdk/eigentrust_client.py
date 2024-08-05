@@ -4,16 +4,18 @@ import io
 import json
 import logging
 import math
-import numbers
 import os
 import random
 import string
 import time
 import warnings
 from collections.abc import Callable
+from dataclasses import asdict, dataclass, fields, replace
 from datetime import datetime
-from typing import List, Literal, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, \
+    Union
 
+import boto3
 import urllib3
 
 
@@ -41,13 +43,6 @@ class Score(TypedDict):
 
 SCORE_CSV_HEADERS = ['i', 'v']
 
-DEFAULT_EIGENTRUST_ALPHA: float = 0.5
-# DEFAULT_EIGENTRUST_EPSILON: float = 1.0
-# DEFAULT_EIGENTRUST_MAX_ITER: int = 50
-# DEFAULT_EIGENTRUST_FLAT_TAIL: int = 2
-DEFAULT_EIGENTRUST_HOST_URL: str = "https://openrank-sdk-api.k3l.io"
-DEFAULT_EIGENTRUST_TIMEOUT_MS: int = 15 * 60 * 1000
-DEFAULT_S3_BUCKET: str = "openrank-sdk-dev-cache"
 SchemaType = Literal["inline", "objectstorage"]
 
 
@@ -81,59 +76,209 @@ class ScoreScale(enum.Enum):
     """
 
 
-_SCORE_SCALERS: dict[ScoreScale, Callable[[float], float]] = {
+_SCORE_SCALERS: Dict[ScoreScale, Callable[[float], float]] = {
     ScoreScale.RAW: lambda v: v,
     ScoreScale.PERCENT: lambda v: v * 100,
     ScoreScale.LOG: lambda v: math.log(v, 0.1) - 1,
 }
 
 
+def snake2camel(s: str) -> str:
+    return ''.join(
+        w.capitalize() if i > 0 else w.lower()
+        for i, w in enumerate(s.split('_'))
+    )
+
+
+def replace_with_kwargs(obj, kwargs: Dict[str, Any]):
+    """
+    Replace fields of a dataclass instance obj with given kwargs.
+
+    Pop and use only the kwargs that match a field name, leave others intact.
+    """
+    changes = {}
+    for f in fields(obj):
+        try:
+            v = kwargs.pop(f.name)
+        except KeyError:
+            pass
+        else:
+            changes[f.name] = v
+    return replace(obj, **changes)
+
+
+def assert_empty_kwargs(kwargs):
+    if kwargs:
+        msg = (f"extra keyword arguments: "
+               f"{', '.join(f'{k}={v!r}' for k, v in kwargs.items())}")
+        raise TypeError(msg)
+
+
+@dataclass
+class ComputeReqParams:
+    """
+    EigenTrust compute request parameters.
+
+    `alpha` and `epsilon` are core EigenTrust parameters.
+
+    `max_iterations`, `min_iterations`, and `check_freq` are
+    exit criteria parameters.
+    They can be used with bipartite or otherwise heterogenous trust graphs
+    such as hubs-and-authorities affinity graphs,
+    to handle convergence over fixed-cycle oscillations.
+
+    `flat_tail` and `num_leaders` are flat-tail detection parameters,
+    which can be used when ranking stability should be part of exit criteria.
+    """
+
+    alpha: Optional[float] = None
+    """
+    Seed trust strength, between 0 and 1 inclusive.
+
+    Higher values skew the result toward the seed trust bias
+    and away from the local trust opinions.
+    Lower values skew the result toward the local trust opinions
+    and away from the seed trust (thus more "democratic"),
+    but tends to be slower.
+
+    When unsure, start with 0.5, observe the result,
+    then tune higher/lower as needed.
+    """
+
+    epsilon: Optional[float] = None
+    """
+    Convergence termination threshold, between 0 and 1 inclusive.
+
+    Leave untouched for the most part, except when using flat-tail (advanced).
+    """
+
+    max_iterations: Optional[int] = None
+    """
+    The maximum number of iterations.
+
+    Iteration loop stops after this many iterations
+    even if other termination criteria are not met.
+
+    0 (default) means no limit.
+    """
+
+    min_iterations: Optional[int] = None
+    """
+    The minimum number of iterations.
+
+    The loop performs at least this many iterations
+    even if other termination criteria are met.
+
+    Defauls to check_freq, which in turn defaults to 1.
+    """
+
+    check_freq: Optional[int] = None
+    """
+    Exit criteria check frequency, in number of iterations.
+
+    The loop checks exit criteria only every this many iterations.
+    It can be used with `min_iterations` for "modulo n" behavior,
+    e.g. with ``min_iterations=7`` and ``check_freq=5``
+    exit criteria are checked after 7/12/17/... iterations.
+
+    Default is 1: exit criteria are checked after every iteration.
+    """
+
+    flat_tail: Optional[int] = None
+    """
+    Flat tail length.
+
+    This is the number of consecutive iterations with
+    ranking unchanged from previous iteration
+    that must be seen before terminating the recursion.
+
+    0 (default) means a flat tail need not be seen,
+    and the recursion is terminated solely based upon convergence check.
+    """
+
+    num_leaders: Optional[int] = None
+    """
+    The number of top-ranking for flat tail detection.
+
+    0 (default) means everyone.
+    """
+
+    def update_req(self, req: Dict[str, Any]):
+        req.update((snake2camel(k), v)
+                   for k, v in asdict(self).items()
+                   if v is not None)
+
+
+DEFAULT_COMPUTE_PARAMS = ComputeReqParams()  # none yet
+
+
+@dataclass
+class ClientParams:
+    """EigenTrust API client parameters."""
+
+    host_url: Optional[str] = None
+    """The host URL for the EigenTrust service."""
+
+    timeout: Optional[int] = None
+    """EigenTrust request timeout, in milliseconds."""
+
+    api_key: Optional[str] = None
+    """The API key for authentication."""
+
+    s3_bucket: Optional[str] = None
+    """The S3 bucket to use S3-based local trust upload."""
+
+
+DEFAULT_CLIENT_PARAMS = ClientParams(
+    host_url="https://openrank-sdk-api.k3l.io",
+    timeout=(15 * 60 * 1000),
+    s3_bucket="openrank-sdk-dev-cache",
+    api_key='',
+)
+
+
 class EigenTrust:
-    def __init__(self, **kwargs):
-        """
-        Initialize the EigenTrust class with optional parameters.
+    """
+    EigenTrust client.
 
-        Args:
-            alpha (float): The alpha value for EigenTrust.
-            host_url (str): The host URL for the EigenTrust service.
-            timeout (int): The timeout value for the EigenTrust requests.
-            api_key (str): The API key for authentication.
+    Can be instantiated also with various request parameters.
+    These values are used when they are not specified to individual request
+    method calls such as `run_eigentrust()`.
+    If a parameter is neither specified here nor to the request method call,
+    server picks/uses the default value.
 
-        Example:
-            et = EigenTrust(alpha=0.5, epsilon=1.0, max_iter=50, flat_tail=2,
-                            host_url="https://example.com", timeout=900000,
-                            api_key="your_api_key")
-        """
+    See `ComputeReqParams` and `ClientParams` for the list of parameters.
 
-        self.alpha = kwargs.get('alpha') if isinstance(kwargs.get(
-            'alpha'), numbers.Number) else DEFAULT_EIGENTRUST_ALPHA
-        # self.epsilon = (
-        #     kwargs.get('epsilon')
-        #     if isinstance(kwargs.get('epsilon'), numbers.Number)
-        #     else DEFAULT_EIGENTRUST_EPSILON)
-        # self.max_iter = (
-        #     kwargs.get('max_iter')
-        #     if isinstance(kwargs.get('max_iter'), numbers.Number)
-        #     else DEFAULT_EIGENTRUST_MAX_ITER)
-        # self.flat_tail = (
-        #     kwargs.get('flat_tail')
-        #     if isinstance(kwargs.get('flat_tail'), numbers.Number)
-        #     else DEFAULT_EIGENTRUST_FLAT_TAIL)
-        self.go_eigentrust_host_url = kwargs.get('host_url') if isinstance(
-            kwargs.get('host_url'), str) else DEFAULT_EIGENTRUST_HOST_URL
-        self.go_eigentrust_timeout_ms = (
-            kwargs.get('timeout')
-            if isinstance(kwargs.get('timeout'), numbers.Number)
-            else DEFAULT_EIGENTRUST_TIMEOUT_MS
-        )
-        self.api_key = kwargs.get('api_key') if isinstance(
-            kwargs.get('api_key'), str) else ''
+    Example:
+
+    >>> et = EigenTrust(alpha=0.5, epsilon=1.0, max_iterations=50, flat_tail=2,
+    ...                 host_url="https://example.com", timeout=900000,
+    ...                 api_key="your_api_key")
+    """
+
+    def __init__(self, *poargs, **kwargs):
+        compute_params = replace_with_kwargs(DEFAULT_COMPUTE_PARAMS, kwargs)
+        client_params = replace_with_kwargs(DEFAULT_CLIENT_PARAMS, kwargs)
+        super().__init__(*poargs, **kwargs)
+        self.compute_params = compute_params
+        self.client_params = client_params
         self.http = urllib3.PoolManager()
-        self.s3_bucket = (kwargs.get('s3_bucket')
-                          if isinstance(kwargs.get('s3_bucket'), str)
-                          else DEFAULT_S3_BUCKET)
 
-        logging.basicConfig(level=logging.INFO)
+    @property
+    def alpha(self):
+        return self.compute_params.alpha
+
+    @property
+    def go_eigentrust_host_url(self):
+        return self.client_params.host_url
+
+    @property
+    def api_key(self):
+        return self.client_params.api_key
+
+    @property
+    def s3_bucket(self):
+        return self.client_params.s3_bucket
 
     @staticmethod
     def normalize_trust(
@@ -143,7 +288,7 @@ class EigenTrust:
 
     def run_eigentrust(
             self, localtrust: List[IJV], pretrust: List[IV] = None, *,
-            scale: Union[ScoreScale, str]= ScoreScale.LEGACY,
+            scale: Union[ScoreScale, str] = ScoreScale.LEGACY, **kwargs,
     ) -> List[Score]:
         """
         Run the EigenTrust algorithm using the provided local trust and
@@ -242,7 +387,8 @@ class EigenTrust:
         i_scores = self._send_go_eigentrust_req(pretrust=pretrust,
                                                 max_pt_id=max_id,
                                                 localtrust=localtrust,
-                                                max_lt_id=max_id)
+                                                max_lt_id=max_id,
+                                                **kwargs)
 
         addr_scores = sorted(({'i': int_to_addr_map[i_score['i']],
                                'v': scaler(i_score['v'])}
@@ -281,6 +427,7 @@ class EigenTrust:
 
     def run_eigentrust_from_csv(
             self, localtrust_filename: str, pretrust_filename: str = None,
+            **kwargs,
     ) -> List[Score]:
         """
         Run the EigenTrust algorithm using local trust and pre-trust data
@@ -302,7 +449,7 @@ class EigenTrust:
 
         localtrust, pretrust = self._read_scores_from_csv(localtrust_filename,
                                                           pretrust_filename)
-        return self.run_eigentrust(localtrust, pretrust)
+        return self.run_eigentrust(localtrust, pretrust, **kwargs)
 
     def _send_go_eigentrust_req(
             self,
@@ -311,6 +458,7 @@ class EigenTrust:
             localtrust: list[dict],
             max_lt_id: int,
             req: dict = None,
+            **kwargs,
     ):
         """
         Send a request to the EigenTrust service to compute scores.
@@ -327,6 +475,9 @@ class EigenTrust:
         Example:
             scores = self._send_go_eigentrust_req(pretrust, max_pt_id, localtrust, max_lt_id)
         """
+        compute_params = replace_with_kwargs(self.compute_params, kwargs)
+        client_params = replace_with_kwargs(self.client_params, kwargs)
+        assert_empty_kwargs(kwargs)
         if req is None:
             req = {
                 "pretrust": {
@@ -341,11 +492,8 @@ class EigenTrust:
                     "size": int(max_lt_id) + 1,
                     "entries": localtrust,
                 },
-                "alpha": self.alpha,
-                # "epsilon": self.epsilon,
-                # "max_iterations": self.max_iter,
-                # "flatTail": self.flat_tail,
             }
+            compute_params.update_req(req)
 
         start_time = time.perf_counter()
         try:
@@ -353,15 +501,17 @@ class EigenTrust:
 
             response = self.http.request(
                 'POST',
-                f"{self.go_eigentrust_host_url}/basic/v1/compute",
+                f"{client_params.host_url}/basic/v1/compute",
                 headers={
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
                     'API-Key': self.api_key,
                 },
                 body=encoded_data,
-                timeout=self.go_eigentrust_timeout_ms,
+                timeout=client_params.timeout,
             )
+            logging.debug(
+                f"go-eigentrust took {time.perf_counter() - start_time} secs")
 
             resp_dict = json.loads(response.data.decode('utf-8'))
 
@@ -374,10 +524,10 @@ class EigenTrust:
                 }
 
             return resp_dict["entries"]
-        except Exception as e:
-            logging.error('error while sending a request to go-eigentrust', e)
-        logging.debug(
-            f"go-eigentrust took {time.perf_counter() - start_time} secs ")
+        except Exception:
+            logging.error('error while sending a request to go-eigentrust',
+                          exc_info=True)
+            raise
 
     @staticmethod
     def export_scores_to_csv(
@@ -486,6 +636,7 @@ class EigenTrust:
 
     def run_eigentrust_from_s3(
             self, localtrust_filename: str, pretrust_filename: str = None,
+            **kwargs,
     ) -> List[Score]:
         start_time = time.perf_counter()
         localtrust_tmp_filename = "localtrust-tmp.csv"
@@ -565,7 +716,6 @@ class EigenTrust:
                 "format": "csv",
                 "url": f"s3://{self.s3_bucket}/{localtrust_s3}",
             },
-            "alpha": self.alpha,
         }
 
         if pretrust_filename is not None:
@@ -574,13 +724,15 @@ class EigenTrust:
                 "format": "csv",
                 "url": f"s3://{self.s3_bucket}/{pretrust_s3}",
             }
+        compute_params = replace_with_kwargs(self.compute_params, kwargs)
+        compute_params.update_req(req)
 
         i_scores = self._send_go_eigentrust_req(pretrust=pretrust,
                                                 max_pt_id=max_id,
                                                 localtrust=localtrust,
                                                 max_lt_id=max_id,
                                                 req=req,
-                                                )
+                                                **kwargs)
 
         addr_scores = [{'i': int_to_addr_map[i_score['i']], 'v': i_score['v']}
                        for i_score in i_scores]
