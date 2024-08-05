@@ -512,17 +512,16 @@ class EigenTrust:
             )
             logging.debug(
                 f"go-eigentrust took {time.perf_counter() - start_time} secs")
-
-            resp_dict = json.loads(response.data.decode('utf-8'))
-
             if response.status != 200:
-                logging.error(f"Server error: {response.status}:"
-                              f"{resp_dict} {resp_dict}")
-                raise {
-                    "statusCode": response.status,
-                    "body": str(resp_dict)
-                }
+                try:
+                    resp_data = response.data.decode('UTF-8')
+                except UnicodeDecodeError:
+                    resp_data = response.data
+                msg = f"Server returned HTTP {response.status}: {resp_data}"
+                logging.error(msg)
+                raise RuntimeError(msg)
 
+            resp_dict = json.loads(response.data)
             return resp_dict["entries"]
         except Exception:
             logging.error('error while sending a request to go-eigentrust',
