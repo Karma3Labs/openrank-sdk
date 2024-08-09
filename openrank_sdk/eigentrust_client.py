@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, \
     Union
 
 import boto3
-import urllib3
+import httpx
 
 
 class IJV(TypedDict):
@@ -262,7 +262,7 @@ class EigenTrust:
         super().__init__(*poargs, **kwargs)
         self.compute_params = compute_params
         self.client_params = client_params
-        self.http = urllib3.PoolManager()
+        self.http = httpx.Client(timeout=self.client_params.timeout / 1000)
 
     @property
     def alpha(self):
@@ -497,35 +497,30 @@ class EigenTrust:
 
         start_time = time.perf_counter()
         try:
-            encoded_data = json.dumps(req).encode('utf-8')
-
-            response = self.http.request(
-                'POST',
+            response = self.http.post(
                 f"{client_params.host_url}/basic/v1/compute",
                 headers={
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
                     'API-Key': self.api_key,
                 },
-                body=encoded_data,
-                timeout=client_params.timeout,
+                content=json.dumps(req).encode('utf-8'),
+                follow_redirects=True,
             )
             logging.debug(
                 f"go-eigentrust took {time.perf_counter() - start_time} secs")
-            if response.status != 200:
-                try:
-                    resp_data = response.data.decode('UTF-8')
-                except UnicodeDecodeError:
-                    resp_data = response.data
-                msg = f"Server returned HTTP {response.status}: {resp_data}"
+
+            if response.status_code != 200:
+                resp_data = response.text
+                msg = f"Server returned HTTP {response.status_code}: {resp_data}"
                 logging.error(msg)
                 raise RuntimeError(msg)
 
-            resp_dict = json.loads(response.data)
+            resp_dict = response.json()
             return resp_dict["entries"]
         except Exception:
-            logging.error('error while sending a request to go-eigentrust',
-                          exc_info=True)
+            logging.error('Error while sending a request to go-eigentrust',
+                        exc_info=True)
             raise
 
     @staticmethod
@@ -805,17 +800,15 @@ class EigenTrust:
             writer.writerow(item.values())
 
         # Send the CSV data to the server
-        response = self.http.request(
-            'POST',
-            (f'{self.go_eigentrust_host_url}/upload/{endpoint}'
-             f'?overwrite={overwrite}'),
+        response = self.http.post(
+            f'{self.go_eigentrust_host_url}/upload/{endpoint}?overwrite={overwrite}',
             headers={'Content-Type': 'text/csv'},
-            body=csv_buffer.getvalue().encode('utf-8'),
+            content=csv_buffer.getvalue().encode('utf-8'),
         )
 
-        if response.status != 200:
+        if response.status_code != 200:
             raise Exception(
-                f"Failed to upload CSV: {response.data.decode('utf-8')}")
+                f"Failed to upload CSV: {response.text}")
 
         return f'{self.go_eigentrust_host_url}/download/{endpoint}'
 
@@ -832,15 +825,15 @@ class EigenTrust:
         Example:
             data = et._download_csv('localtrust/123')
         """
-        response = self.http.request(
-            'GET',
+        response = self.http.get(
             f'{self.go_eigentrust_host_url}/download/{endpoint}',
             headers={'Accept': 'text/csv'}
         )
-        if response.status != 200:
+
+        if response.status_code != 200:
             raise Exception(
-                f"Failed to download CSV: {response.data.decode('utf-8')}")
-        data = response.data.decode('utf-8').splitlines()
+                f"Failed to download CSV: {response.text}")
+        data = response.text.splitlines()
         reader = csv.DictReader(data)
         return list(reader)
 
@@ -920,20 +913,19 @@ class EigenTrust:
         if pretrust_id:
             data['pretrust_id'] = pretrust_id
 
-        response = self.http.request(
-            'POST',
+        response = self.http.post(
             f'{self.go_eigentrust_host_url}/compute_from_id',
             headers={'Content-Type': 'application/json'},
-            body=json.dumps(data).encode('utf-8')
+            json=data
         )
 
-        if response.status != 200:
+        if response.status_code != 200:
             raise Exception(
-                f"Failed to run eigentrust: {response.data.decode('utf-8')}")
+                f"Failed to run eigentrust: {response.text}")
 
-        resp_dict = json.loads(response.data.decode('utf-8'))
+        resp_dict = response.json()
         scores = [Score(i=item['i'], v=item['v'])
-                  for item in resp_dict['scores']]
+                for item in resp_dict['scores']]
         return scores
 
     def run_and_publish_eigentrust_from_id(
