@@ -610,13 +610,11 @@ class EigenTrust:
             )
             resp_dict = response.json()
 
-            if response.status != 200:
-                logging.error(f"Server error: {response.status}:"
-                              f"{resp_dict} {resp_dict}")
-                raise {
-                    "statusCode": response.status,
-                    "body": str(resp_dict)
-                }
+            if response.status_code != 200:
+                resp_data = response.text
+                msg = f"Server returned HTTP {response.status_code}: {resp_data}"
+                logging.error(msg)
+                raise RuntimeError(msg)
 
             return resp_dict
         except Exception as e:
