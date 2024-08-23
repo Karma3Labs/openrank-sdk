@@ -1,7 +1,6 @@
 import csv
 import enum
 import io
-import json
 import logging
 import math
 import os
@@ -501,10 +500,9 @@ class EigenTrust:
                 f"{client_params.host_url}/basic/v1/compute",
                 headers={
                     'Accept': 'application/json',
-                    'Content-Type': 'application/json',
                     'API-Key': self.api_key,
                 },
-                content=json.dumps(req).encode('utf-8'),
+                json=req,
                 follow_redirects=True,
             )
             logging.debug(
@@ -520,7 +518,7 @@ class EigenTrust:
             return resp_dict["entries"]
         except Exception:
             logging.error('Error while sending a request to go-eigentrust',
-                        exc_info=True)
+                          exc_info=True)
             raise
 
     @staticmethod
@@ -591,20 +589,17 @@ class EigenTrust:
 
         start_time = time.perf_counter()
         try:
-            encoded_data = json.dumps(req)
-
             response = self.http.request(
                 'POST',
                 "https://api.dune.com/api/v1/table/upload/csv",
                 headers={
                     'Accept': 'application/json',
-                    'Content-Type': 'application/json',
                     'X-DUNE-API-KEY': api_key,
                 },
-                body=encoded_data,
+                json=req,
                 # timeout=30 * 1000,
             )
-            resp_dict = json.loads(response.data.decode('utf-8'))
+            resp_dict = response.json()
 
             if response.status != 200:
                 logging.error(f"Server error: {response.status}:"
@@ -915,7 +910,6 @@ class EigenTrust:
 
         response = self.http.post(
             f'{self.go_eigentrust_host_url}/compute_from_id',
-            headers={'Content-Type': 'application/json'},
             json=data
         )
 
@@ -925,7 +919,7 @@ class EigenTrust:
 
         resp_dict = response.json()
         scores = [Score(i=item['i'], v=item['v'])
-                for item in resp_dict['scores']]
+                  for item in resp_dict['scores']]
         return scores
 
     def run_and_publish_eigentrust_from_id(
