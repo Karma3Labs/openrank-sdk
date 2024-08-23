@@ -236,6 +236,14 @@ DEFAULT_CLIENT_PARAMS = ClientParams(
 )
 
 
+class _NoEdgesFoundForAddresses(RuntimeError):
+    """No edges found for addresses."""
+
+    def __str__(self):
+        addresses = self.args[0]
+        return f"No edges found for {addresses}"
+
+
 class EigenTrust:
     """
     EigenTrust client.
@@ -285,6 +293,58 @@ class EigenTrust:
     ) -> [List[Score], List[Score]]:
         return localtrust, pretrust
 
+    def _prepare_input(self, localtrust, pretrust):
+        lt = []
+        for entry in localtrust:
+            if entry['v'] <= 0.0:
+                logging.warning(f"v cannot be less than or equal to 0, "
+                                f"skipping this entry: {entry}")
+            elif entry['i'] == entry['j']:
+                logging.warning(f"i and j cannot be same, "
+                                f"skipping this entry: {entry}")
+            else:
+                lt.append(entry)
+        localtrust = lt
+        addresses = set()
+        for entry in localtrust:
+            addresses.add(entry["i"])
+            addresses.add(entry["j"])
+        if len(addresses) <= 0:
+            raise _NoEdgesFoundForAddresses(addresses)
+        addr_to_int_map = {}
+        int_to_addr_map = {}
+        for idx, addr in enumerate(addresses):
+            addr_to_int_map[addr] = idx
+            int_to_addr_map[idx] = addr
+        if not pretrust:
+            pt_len = len(addresses)
+            logging.debug(f"generating pretrust from localtrust "
+                          f"with equally weighted pretrusted value")
+            pretrust = [{'i': addr_to_int_map[addr], 'v': 1 / pt_len}
+                        for addr in addresses]
+        else:
+            pt = []
+            for p in pretrust:
+                if p['v'] <= 0.0:
+                    logging.warning(f"v cannot be less than or equal to 0, "
+                                    f"skipping this entry: {p}")
+                elif not p['i'] in addresses:
+                    logging.warning(f"i entry not found in localtrust, "
+                                    f"skipping this entry: {p}")
+                else:
+                    pt.append(p)
+            pretrust = pt
+            pretrust = [{'i': addr_to_int_map[p['i']], 'v': p['v']}
+                        for p in pretrust]
+        logging.debug(f"generating localtrust with "
+                      f"{len(addresses)} addresses")
+        localtrust = [{'i': addr_to_int_map[entry['i']],
+                       'j': addr_to_int_map[entry['j']],
+                       'v': entry['v']}
+                      for entry in localtrust]
+        max_id = len(addresses)
+        return localtrust, pretrust, int_to_addr_map, max_id
+
     def run_eigentrust(
             self, localtrust: List[IJV], pretrust: List[IV] = None, *,
             scale: Union[ScoreScale, str] = ScoreScale.LEGACY, **kwargs,
@@ -324,63 +384,11 @@ class EigenTrust:
         reverse = scale != ScoreScale.LOG
         start_time = time.perf_counter()
 
-        lt = []
-        for entry in localtrust:
-            if entry['v'] <= 0.0:
-                logging.warning(
-                    f"v cannot be less than or equal to 0, "
-                    f"skipping this entry: {entry}")
-            elif entry['i'] == entry['j']:
-                logging.warning(
-                    f"i and j cannot be same, skipping this entry: {entry}")
-            else:
-                lt.append(entry)
-        localtrust = lt
-
-        addresses = set()
-        for entry in localtrust:
-            addresses.add(entry["i"])
-            addresses.add(entry["j"])
-        if len(addresses) <= 0:
-            print(f"No edges found for {addresses}")
+        try:
+            localtrust, pretrust, int_to_addr_map, max_id = self._prepare_input(localtrust, pretrust)
+        except _NoEdgesFoundForAddresses as e:
+            print(e)
             return []
-
-        addr_to_int_map = {}
-        int_to_addr_map = {}
-        for idx, addr in enumerate(addresses):
-            addr_to_int_map[addr] = idx
-            int_to_addr_map[idx] = addr
-
-        if not pretrust:
-            pt_len = len(addresses)
-            logging.debug(
-                f"generating pretrust from localtrust with equally weighted "
-                f"pretrusted value")
-            pretrust = [{'i': addr_to_int_map[addr], 'v': 1 / pt_len}
-                        for addr in addresses]
-        else:
-            pt = []
-            for p in pretrust:
-                if p['v'] <= 0.0:
-                    logging.warning(
-                        f"v cannot be less than or equal to 0, "
-                        f"skipping this entry: {p}")
-                elif not p['i'] in addresses:
-                    logging.warning(
-                        f"i entry not found in localtrust, "
-                        f"skipping this entry: {p}")
-                else:
-                    pt.append(p)
-            pretrust = pt
-            pretrust = [{'i': addr_to_int_map[p['i']], 'v': p['v']}
-                        for p in pretrust]
-
-        logging.debug(f"generating localtrust with "
-                      f"{len(addresses)} addresses")
-        localtrust = [{'i': addr_to_int_map[entry['i']],
-                       'j': addr_to_int_map[entry['j']],
-                       'v': entry['v']} for entry in localtrust]
-        max_id = len(addresses)
 
         logging.debug("calling go_eigentrust")
         i_scores = self._send_go_eigentrust_req(pretrust=pretrust,
@@ -634,60 +642,11 @@ class EigenTrust:
         localtrust, pretrust = self._read_scores_from_csv(localtrust_filename,
                                                           pretrust_filename)
 
-        lt = []
-        for entry in localtrust:
-            if entry['v'] <= 0.0:
-                logging.warning(f"v cannot be less than or equal to 0, "
-                                f"skipping this entry: {entry}")
-            elif entry['i'] == entry['j']:
-                logging.warning(f"i and j cannot be same, "
-                                f"skipping this entry: {entry}")
-            else:
-                lt.append(entry)
-        localtrust = lt
-
-        addresses = set()
-        for entry in localtrust:
-            addresses.add(entry["i"])
-            addresses.add(entry["j"])
-        if len(addresses) <= 0:
-            print(f"No edges found for {addresses}")
+        try:
+            localtrust, pretrust, int_to_addr_map, max_id = self._prepare_input(localtrust, pretrust)
+        except _NoEdgesFoundForAddresses as e:
+            print(e)
             return []
-
-        addr_to_int_map = {}
-        int_to_addr_map = {}
-        for idx, addr in enumerate(addresses):
-            addr_to_int_map[addr] = idx
-            int_to_addr_map[idx] = addr
-
-        if not pretrust:
-            pt_len = len(addresses)
-            logging.debug(f"generating pretrust from localtrust "
-                          f"with equally weighted pretrusted value")
-            pretrust = [{'i': addr_to_int_map[addr], 'v': 1 / pt_len}
-                        for addr in addresses]
-        else:
-            pt = []
-            for p in pretrust:
-                if p['v'] <= 0.0:
-                    logging.warning(f"v cannot be less than or equal to 0, "
-                                    f"skipping this entry: {p}")
-                elif not p['i'] in addresses:
-                    logging.warning(f"i entry not found in localtrust, "
-                                    f"skipping this entry: {p}")
-                else:
-                    pt.append(p)
-            pretrust = pt
-            pretrust = [{'i': addr_to_int_map[p['i']], 'v': p['v']}
-                        for p in pretrust]
-
-        logging.debug(f"generating localtrust with "
-                      f"{len(addresses)} addresses")
-        localtrust = [{'i': addr_to_int_map[l['i']],
-                       'j': addr_to_int_map[l['j']],
-                       'v': l['v']}
-                      for l in localtrust]
-        max_id = len(addresses)
 
         logging.debug("calling go_eigentrust")
 
