@@ -244,6 +244,7 @@ class _NoEdgesFoundForAddresses(RuntimeError):
         return f"No edges found for {addresses}"
 
 
+# noinspection PyMethodMayBeStatic
 class EigenTrust:
     """
     EigenTrust client.
