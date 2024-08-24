@@ -841,7 +841,7 @@ class EigenTrust:
 
     def run_eigentrust_from_id(
             self, localtrust_id: str, pretrust_id: str = None,
-    ) -> Tuple[List[Score], str]:
+    ) -> List[Score]:
         """
         Run the EigenTrust algorithm using local trust and pre-trust data
         identified by their IDs.
