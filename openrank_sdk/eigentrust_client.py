@@ -694,8 +694,9 @@ class EigenTrust:
 
     def _upload_csv_to_s3(self, file_name) -> str:
         if not file_name.lower().endswith('.csv'):
-            logging.error("Error: The file name must end with '.csv'.")
-            return
+            msg = "CSV file name must end with '.csv'"
+            logging.error(msg)
+            raise RuntimeError(msg)
 
         object_name = (
                 ''.join(random.choice(string.ascii_letters + string.digits)
