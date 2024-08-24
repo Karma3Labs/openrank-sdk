@@ -654,8 +654,6 @@ class EigenTrust:
             self._save_dict_to_csv(pretrust, pretrust_tmp_filename)
 
         localtrust_s3 = self._upload_csv_to_s3(localtrust_tmp_filename)
-        if pretrust_filename is not None:
-            pretrust_s3 = self._upload_csv_to_s3(pretrust_tmp_filename)
 
         req = {
             "localTrust": {
@@ -666,6 +664,7 @@ class EigenTrust:
         }
 
         if pretrust_filename is not None:
+            pretrust_s3 = self._upload_csv_to_s3(pretrust_tmp_filename)
             req["pretrust"] = {
                 "scheme": 'objectstorage',
                 "format": "csv",
