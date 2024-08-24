@@ -386,7 +386,9 @@ class EigenTrust:
         start_time = time.perf_counter()
 
         try:
-            localtrust, pretrust, int_to_addr_map, max_id = self._prepare_input(localtrust, pretrust)
+            (
+                localtrust, pretrust, int_to_addr_map, max_id,
+            ) = self._prepare_input(localtrust, pretrust)
         except _NoEdgesFoundForAddresses as e:
             print(e)
             return []
@@ -642,7 +644,9 @@ class EigenTrust:
                                                           pretrust_filename)
 
         try:
-            localtrust, pretrust, int_to_addr_map, max_id = self._prepare_input(localtrust, pretrust)
+            (
+                localtrust, pretrust, int_to_addr_map, max_id,
+            ) = self._prepare_input(localtrust, pretrust)
         except _NoEdgesFoundForAddresses as e:
             print(e)
             return []
