@@ -463,9 +463,9 @@ class EigenTrust:
 
     def _send_go_eigentrust_req(
             self,
-            pretrust: list[dict],
+            pretrust: List[dict],
             max_pt_id: int,
-            localtrust: list[dict],
+            localtrust: List[dict],
             max_lt_id: int,
             req: dict = None,
             **kwargs,
@@ -625,7 +625,7 @@ class EigenTrust:
         logging.debug(
             f"dune-upload-csv took {time.perf_counter() - start_time} secs ")
 
-    def _save_dict_to_csv(self, data: list[dict], filename: str):
+    def _save_dict_to_csv(self, data: List[dict], filename: str):
         with open(filename, mode='w', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=data[0].keys())
             writer.writeheader()
