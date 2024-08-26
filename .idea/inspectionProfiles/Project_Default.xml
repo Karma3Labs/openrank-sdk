@@ -15,18 +15,5 @@
         </value>
       </option>
     </inspection_tool>
-    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
-      <option name="ignoredIdentifiers">
-        <list>
-          <option value="structlog._base.BoundLoggerBase.*" />
-        </list>
-      </option>
-    </inspection_tool>
-    <inspection_tool class="RegExpRepeatedSpace" enabled="true" level="INFORMATION" enabled_by_default="true" />
-    <inspection_tool class="SpellCheckingInspection" enabled="true" level="INFORMATION" enabled_by_default="true">
-      <option name="processCode" value="true" />
-      <option name="processLiterals" value="true" />
-      <option name="processComments" value="true" />
-    </inspection_tool>
   </profile>
 </component>
