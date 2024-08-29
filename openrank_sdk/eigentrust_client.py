@@ -1,5 +1,7 @@
+import boto3
 import csv
 import enum
+import httpx
 import io
 import logging
 import math
@@ -13,9 +15,6 @@ from dataclasses import asdict, dataclass, fields, replace
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, \
     Union
-
-import boto3
-import httpx
 
 
 class IJV(TypedDict):
@@ -295,6 +294,7 @@ class EigenTrust:
         return localtrust, pretrust
 
     def _prepare_input(self, localtrust, pretrust):
+
         lt = []
         for entry in localtrust:
             if entry['v'] <= 0.0:
@@ -319,8 +319,8 @@ class EigenTrust:
             int_to_addr_map[idx] = addr
         if not pretrust:
             pt_len = len(addresses)
-            logging.debug(f"generating pretrust from localtrust "
-                          f"with equally weighted pretrusted value")
+            logging.info(f"generating pretrust from localtrust "
+                         f"with equally weighted pretrusted value")
             pretrust = [{'i': addr_to_int_map[addr], 'v': 1 / pt_len}
                         for addr in addresses]
         else:
@@ -344,6 +344,7 @@ class EigenTrust:
                        'v': entry['v']}
                       for entry in localtrust]
         max_id = len(addresses) - 1
+
         return localtrust, pretrust, int_to_addr_map, max_id
 
     def run_eigentrust(
@@ -386,7 +387,8 @@ class EigenTrust:
         start_time = time.perf_counter()
 
         try:
-            localtrust, pretrust, int_to_addr_map, max_id = self._prepare_input(localtrust, pretrust)
+            localtrust, pretrust, int_to_addr_map, max_id = self._prepare_input(
+                localtrust, pretrust)
         except _NoEdgesFoundForAddresses as e:
             print(e)
             return []
@@ -415,22 +417,22 @@ class EigenTrust:
             for i, line in enumerate(reader):
                 i, j, v = line[0], line[1], line[2]
                 # is header
-                if not v.isnumeric():
+                if not self.is_number(v):
                     continue
                 localtrust.append({'i': str(i), 'j': str(j), 'v': float(v)})
 
         pretrust = None
         if pretrust_filename:
+
             pretrust = []
             with open(pretrust_filename, "r") as f:
                 reader = csv.reader(f, delimiter=",")
                 for i, line in enumerate(reader):
                     i, v = line[0], line[1]
                     # is header
-                    if not v.isnumeric():
+                    if not self.is_number(v):
                         continue
                     pretrust.append({'i': str(i), 'v': float(v)})
-
         return localtrust, pretrust
 
     def run_eigentrust_from_csv(
@@ -457,6 +459,7 @@ class EigenTrust:
 
         localtrust, pretrust = self._read_scores_from_csv(localtrust_filename,
                                                           pretrust_filename)
+
         return self.run_eigentrust(localtrust, pretrust, **kwargs)
 
     def _send_go_eigentrust_req(
@@ -642,7 +645,8 @@ class EigenTrust:
                                                           pretrust_filename)
 
         try:
-            localtrust, pretrust, int_to_addr_map, max_id = self._prepare_input(localtrust, pretrust)
+            localtrust, pretrust, int_to_addr_map, max_id = self._prepare_input(
+                localtrust, pretrust)
         except _NoEdgesFoundForAddresses as e:
             print(e)
             return []
@@ -822,6 +826,14 @@ class EigenTrust:
             iv_list = et._convert_to_iv(data)
         """
         return [{'i': row['i'], 'v': float(row['v'])} for row in data]
+
+    @staticmethod
+    def is_number(value):
+        try:
+            float(value)
+            return True
+        except ValueError:
+            return False
 
     @staticmethod
     def _convert_to_score(data: List[dict]) -> List[Score]:
