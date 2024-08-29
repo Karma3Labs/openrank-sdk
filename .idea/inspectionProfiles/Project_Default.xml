@@ -15,5 +15,20 @@
         </value>
       </option>
     </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="openrank_sdk.trust.Ref.from_dict" />
+          <option value="openrank_sdk.trust.Inline.to_dict" />
+          <option value="openrank_sdk.trust.Entry.from_dict" />
+          <option value="openrank_sdk.trust.Entry.to_dict" />
+          <option value="openrank_sdk.trust.MatrixEntry.from_dict" />
+          <option value="openrank_sdk.trust.VectorEntry.from_dict" />
+          <option value="openrank_sdk.trust.VectorEntry.to_dict" />
+          <option value="openrank_sdk.trust.Ref.to_dict" />
+          <option value="openrank_sdk.eigentrust_client.ComputeRequestBody.to_dict" />
+        </list>
+      </option>
+    </inspection_tool>
   </profile>
 </component>
