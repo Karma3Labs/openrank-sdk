@@ -343,7 +343,7 @@ class EigenTrust:
                        'j': addr_to_int_map[entry['j']],
                        'v': entry['v']}
                       for entry in localtrust]
-        max_id = len(addresses)
+        max_id = len(addresses) - 1
         return localtrust, pretrust, int_to_addr_map, max_id
 
     def run_eigentrust(
