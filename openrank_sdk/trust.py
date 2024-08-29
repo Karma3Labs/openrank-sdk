@@ -281,7 +281,7 @@ class Inline(Ref):
                 try:
                     entry = dict(**{n: coord_map[entry[n]]
                                     for n in cls.coords}, v=entry['v'])
-                except KeyError as e:
+                except KeyError:
                     if on_missing == 'raise':
                         raise
                     continue
