@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import csv
 import enum
 import io
@@ -8,51 +10,67 @@ import random
 import string
 import time
 import warnings
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, fields, replace
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, \
-    Union
+from tempfile import NamedTemporaryFile, TemporaryFile
+from typing import Any, Callable, Dict, List, Literal, Optional, \
+    Tuple, Union
 
 import boto3
 import httpx
+import pandas as pd
+from dataclasses_json import LetterCase, dataclass_json
+from dataclasses_json.core import Json
+from openrank_sdk import trust
+from openrank_sdk.trust import IJV, IJV_CSV_HEADERS, IV, IV_CSV_HEADERS, \
+    SCORE_CSV_HEADERS, Score
+
+SchemaType = Literal["inline", "objectstorage", "stored"]
 
 
-class IJV(TypedDict):
-    i: str
-    j: str
-    v: float
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class ComputeRequestBody:
+    """Compute request body."""
+    local_trust: trust.Matrix
+    initial_trust: Optional[trust.Vector] = None
+    pre_trust: Optional[trust.Vector] = None
+    alpha: Optional[float] = None
+    epsilon: Optional[float] = None
+    flat_tail: Optional[int] = None
+    num_leaders: Optional[int] = None
+    max_iterations: Optional[int] = None
+    min_iterations: Optional[int] = None
+    check_freq: Optional[int] = None
+
+    def encode(self) -> Json:
+        d = self.to_dict()
+        null_keys = {k for k, v in d.items() if v is None}
+        for k in null_keys:
+            del d[k]
+        return d
 
 
-IJV_CSV_HEADERS = ['i', 'j', 'v']
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class ComputeWithStatsResponse:
+    """Successful ``/compute-with-stats`` endpoint response."""
+    eigen_trust: trust.Vector
+    flat_tail_stats: FlatTailStats
 
 
-class IV(TypedDict):
-    i: str
-    v: float
-
-
-IV_CSV_HEADERS = ['i', 'v']
-
-
-class Score(TypedDict):
-    i: str
-    v: float
-
-
-SCORE_CSV_HEADERS = ['i', 'v']
-
-SchemaType = Literal["inline", "objectstorage"]
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class FlatTailStats:
+    """Flat-tail algorithm stats and peer ranking."""
+    length: int
+    threshold: int
+    delta_norm: float
+    ranking: List[int]
 
 
 class ScoreScale(enum.Enum):
     """EigenTrust score scale."""
-    LEGACY = 'legacy'
-    """Legacy behavior (default).
-
-    Behaves same as `RAW` but emits a deprecation warning until the default
-    changes to `LOG`."""
-
     RAW = 'raw'
     """Raw EigenTrust score value in [0..1] range.
 
@@ -67,7 +85,7 @@ class ScoreScale(enum.Enum):
     LOG = 'log'
     """Log distance from the full trust, in [0..inf] range.
 
-    Defined as `log(raw_value, 0.1)-1`, this represents the distance from
+    Defined as `log(raw_value, 0.1)`, this represents the distance from
     the full trust: 0/1/2/3/... represents 100%/10%/1%/0.1%/... of the total
     trust circulating in the network.  Lower distance means higher trust.
 
@@ -78,7 +96,7 @@ class ScoreScale(enum.Enum):
 _SCORE_SCALERS: Dict[ScoreScale, Callable[[float], float]] = {
     ScoreScale.RAW: lambda v: v,
     ScoreScale.PERCENT: lambda v: v * 100,
-    ScoreScale.LOG: lambda v: math.log(v, 0.1) - 1,
+    ScoreScale.LOG: lambda v: math.log(v, 0.1),
 }
 
 
@@ -122,7 +140,7 @@ class ComputeReqParams:
 
     `max_iterations`, `min_iterations`, and `check_freq` are
     exit criteria parameters.
-    They can be used with bipartite or otherwise heterogenous trust graphs
+    They can be used with bipartite or otherwise heterogeneous trust graphs
     such as hubs-and-authorities affinity graphs,
     to handle convergence over fixed-cycle oscillations.
 
@@ -168,7 +186,7 @@ class ComputeReqParams:
     The loop performs at least this many iterations
     even if other termination criteria are met.
 
-    Defauls to check_freq, which in turn defaults to 1.
+    Defaults to check_freq, which in turn defaults to 1.
     """
 
     check_freq: Optional[int] = None
@@ -202,10 +220,10 @@ class ComputeReqParams:
     0 (default) means everyone.
     """
 
-    def update_req(self, req: Dict[str, Any]):
-        req.update((snake2camel(k), v)
-                   for k, v in asdict(self).items()
-                   if v is not None)
+    def update_req(self, req: ComputeRequestBody):
+        for k, v in asdict(self).items():
+            if v is not None:
+                setattr(req, k, v)
 
 
 DEFAULT_COMPUTE_PARAMS = ComputeReqParams()  # none yet
@@ -294,7 +312,70 @@ class EigenTrust:
     ) -> [List[Score], List[Score]]:
         return localtrust, pretrust
 
-    def _prepare_input(self, localtrust, pretrust):
+    def run(self,
+            localtrust: trust.Matrix, pretrust: Optional[trust.Vector], *,
+            scale: Union[ScoreScale, str] = ScoreScale.LOG,
+            **kwargs) -> trust.Vector:
+        """
+        Run the EigenTrust algorithm using the provided local trust and
+        pre-trust data.
+
+        :param localtrust: local trust.
+        :param pretrust: pre-trust.
+        :param scale: how to scale the output scores.
+            See `ScoreScale` documentation for details.
+        :returns: the computed scores.
+
+        Example:
+
+        >>> et = EigenTrust()
+        >>> lt_df = pd.DataFrame([  # uses string peer ids
+        ...     dict(i='ek', j='sd', v=100),
+        ...     dict(i='vm', j='sd', v=100),
+        ...     dict(i='ek', j='vm', v=75),
+        ... ])
+        >>> pt_df = pd.DataFrame([  # uses string peer ids
+        ...     dict(i='ek', v=50),
+        ...     dict(i='vm', v=100),
+        ...     dict(i='gw', v=100),
+        ... ])
+        >>> id2idx, idx2id = trust.make_peer_map()  # peer id <-> index maps
+        >>> lt = trust.InlineMatrix.from_df(
+        ...     lt_df, coord_map=id2idx,
+        ...     on_missing='allocate',  # create peer entries in id2idx/idx2id
+        ... )
+        >>> dict(id2idx)  # peers that appear in local trust
+        {'ek': 0, 'sd': 1, 'vm': 2}
+        >>> pt = trust.InlineVector.from_df(
+        ...     pt_df, coord_map=id2idx,
+        ...     on_missing='drop',  # drops gw because she's not in local trust
+        ... )
+        >>> gt = et.run(lt, pt, scale='raw')
+        >>> assert isinstance(gt, trust.InlineVector)
+        >>> gt_df = gt.to_df(coord_map=idx2id)
+        >>> gt_df
+            i         v
+        0  vm  0.480620
+        1  sd  0.302326
+        2  ek  0.217054
+        """
+        scale = ScoreScale(scale)
+        scaler = _SCORE_SCALERS[scale]
+        reverse = scale != ScoreScale.LOG
+
+        logging.debug("calling go_eigentrust")
+        globaltrust = self._send_go_eigentrust_req(pretrust=pretrust,
+                                                   localtrust=localtrust,
+                                                   **kwargs)
+        if isinstance(globaltrust, trust.InlineVector):
+            globaltrust.entries['v'] = [scaler(v) for v in
+                                        globaltrust.entries['v']]
+            globaltrust.entries = globaltrust.entries.sort_values('v',
+                                                                  ascending=not reverse)
+        return globaltrust
+
+    def _prepare_input(self, localtrust: List[IJV],
+                       pretrust: Optional[List[IV]]):
         lt = []
         for entry in localtrust:
             if entry['v'] <= 0.0:
@@ -305,54 +386,62 @@ class EigenTrust:
                                 f"skipping this entry: {entry}")
             else:
                 lt.append(entry)
-        localtrust = lt
-        addresses = set()
-        for entry in localtrust:
-            addresses.add(entry["i"])
-            addresses.add(entry["j"])
-        if len(addresses) <= 0:
-            raise _NoEdgesFoundForAddresses(addresses)
-        addr_to_int_map = {}
-        int_to_addr_map = {}
-        for idx, addr in enumerate(addresses):
-            addr_to_int_map[addr] = idx
-            int_to_addr_map[idx] = addr
-        if not pretrust:
-            pt_len = len(addresses)
-            logging.debug(f"generating pretrust from localtrust "
-                          f"with equally weighted pretrusted value")
-            pretrust = [{'i': addr_to_int_map[addr], 'v': 1 / pt_len}
-                        for addr in addresses]
-        else:
+        localtrust[:] = lt
+        if pretrust is not None:
             pt = []
             for p in pretrust:
                 if p['v'] <= 0.0:
                     logging.warning(f"v cannot be less than or equal to 0, "
                                     f"skipping this entry: {p}")
-                elif not p['i'] in addresses:
-                    logging.warning(f"i entry not found in localtrust, "
-                                    f"skipping this entry: {p}")
                 else:
                     pt.append(p)
-            pretrust = pt
-            pretrust = [{'i': addr_to_int_map[p['i']], 'v': p['v']}
-                        for p in pretrust]
-        logging.debug(f"generating localtrust with "
-                      f"{len(addresses)} addresses")
-        localtrust = [{'i': addr_to_int_map[entry['i']],
-                       'j': addr_to_int_map[entry['j']],
-                       'v': entry['v']}
-                      for entry in localtrust]
-        max_id = len(addresses) - 1
-        return localtrust, pretrust, int_to_addr_map, max_id
+            pretrust[:] = pt
+
+    @staticmethod
+    def _compat_scale(scale: Optional[Union[ScoreScale, str]]) -> ScoreScale:
+        if scale is None:
+            msg = (
+                "Defaulting to the 'raw' score scale. "
+                "The default scale will change to 'log' in a future version; "
+                "add score='raw' to keep the current behavior "
+                "(and silence this warning)")
+            warnings.warn(msg, DeprecationWarning, stacklevel=3)
+            scale = ScoreScale.RAW
+        return scale
 
     def run_eigentrust(
             self, localtrust: List[IJV], pretrust: List[IV] = None, *,
-            scale: Union[ScoreScale, str] = ScoreScale.LEGACY, **kwargs,
+            scale: Optional[Union[ScoreScale, str]] = None, **kwargs,
     ) -> List[Score]:
         """
         Run the EigenTrust algorithm using the provided local trust and
         pre-trust data.
+
+        This method is for small in-line local trust and pre-trust data;
+        for larger input data (~1M entries or more),
+        the `run()` method should be used directly with `pd.DataFrame`.
+        See the `run()` documentation for details.
+
+        Example:
+
+        >>> from openrank_sdk import EigenTrust
+        >>> et = EigenTrust()
+        >>> lt = [
+        ...     dict(i='ek', j='sd', v=100),
+        ...     dict(i='vm', j='sd', v=100),
+        ...     dict(i='ek', j='vm', v=75),
+        ... ]
+        >>> pt = [
+        ...     dict(i='ek', v=50),
+        ...     dict(i='vm', v=100), dict(i='gw', v=100),
+        ... ]
+        >>> gt = et.run_eigentrust(lt, pt, scale='raw')
+        >>> from pprint import pprint
+        >>> pprint(gt)
+        [{'i': 'vm', 'v': 0.4806201780180134},
+         {'i': 'sd', 'v': 0.3023255429103218},
+         {'i': 'ek', 'v': 0.21705427907166472}]
+
 
         Args:
             localtrust (List[IJV]): List of local trust values.
@@ -363,81 +452,46 @@ class EigenTrust:
 
         Returns:
             List[Score]: List of computed scores.
-
-        Example:
-            localtrust = [
-                {'i': 'A', 'j': 'B', 'v': 0.5},
-                {'i': 'B', 'j': 'C', 'v': 0.6},
-            ]
-            pretrust = [{'i': 'A', 'v': 1.0}]
-            scores = et.run_eigentrust(localtrust, pretrust)
         """
-        scale = ScoreScale(scale)
-        if scale == ScoreScale.LEGACY:
-            warnings.warn(
-                "Defaulting to the 'raw' score scale. "
-                "The default scale will change to 'log' in a future version; "
-                "add score='raw' to keep the current behavior "
-                "(and silence this warning)"
-            )
-            scale = ScoreScale.RAW
-        scaler = _SCORE_SCALERS[scale]
-        reverse = scale != ScoreScale.LOG
-        start_time = time.perf_counter()
+        scale = self._compat_scale(scale)
 
         try:
-            (
-                localtrust, pretrust, int_to_addr_map, max_id,
-            ) = self._prepare_input(localtrust, pretrust)
+            self._prepare_input(localtrust, pretrust)
         except _NoEdgesFoundForAddresses as e:
             print(e)
             return []
 
-        logging.debug("calling go_eigentrust")
-        i_scores = self._send_go_eigentrust_req(pretrust=pretrust,
-                                                max_pt_id=max_id,
-                                                localtrust=localtrust,
-                                                max_lt_id=max_id,
-                                                **kwargs)
-
-        addr_scores = sorted(({'i': int_to_addr_map[i_score['i']],
-                               'v': scaler(i_score['v'])}
-                              for i_score in i_scores),
-                             key=lambda x: x['v'], reverse=reverse)
-        logging.info(f"eigentrust compute took "
-                     f"{time.perf_counter() - start_time} secs")
-        return addr_scores
+        id2idx, idx2id = trust.make_peer_map()
+        lt_matrix = trust.InlineMatrix.from_entries(localtrust, id2idx,
+                                                    on_missing='allocate')
+        if pretrust is None:
+            pt_vector = None
+        else:
+            pt_vector = trust.InlineVector.from_entries(pretrust, id2idx,
+                                                        on_missing='drop')
+        globaltrust = self.run(lt_matrix, pt_vector, scale=scale, **kwargs)
+        return list(globaltrust.load().to_entries(coord_map=idx2id))
 
     def _read_scores_from_csv(
-            self, localtrust_filename: str, pretrust_filename: str = None,
-    ) -> [List[IJV], List[IV]]:
-        localtrust = []
-        with open(localtrust_filename, "r") as f:
-            reader = csv.reader(f, delimiter=",")
-            for i, line in enumerate(reader):
-                i, j, v = line[0], line[1], line[2]
-                # is header
-                if not v.isnumeric():
-                    continue
-                localtrust.append({'i': str(i), 'j': str(j), 'v': float(v)})
+            self, localtrust_filename: str, pretrust_filename: str = None, *,
+            coord_map: trust.PeerId2Index,
+            on_lt_missing: trust.OnMissingPeer,
+            on_pt_missing: trust.OnMissingPeer,
+    ) -> Tuple[trust.InlineMatrix, trust.InlineVector]:
+        lt_df = pd.read_csv(localtrust_filename)
+        lt_columns = tuple(lt_df.columns)
+        pt_df = pd.read_csv(pretrust_filename)
+        pt_columns = tuple(pt_df.columns)
+        lt = trust.InlineMatrix.from_df(lt_df, lt_columns[-1], lt_columns[:-1],
+                                        coord_map, on_missing=on_lt_missing)
+        pt = trust.InlineVector.from_df(pt_df, pt_columns[-1], pt_columns[:-1],
+                                        coord_map, on_missing=on_pt_missing)
 
-        pretrust = None
-        if pretrust_filename:
-            pretrust = []
-            with open(pretrust_filename, "r") as f:
-                reader = csv.reader(f, delimiter=",")
-                for i, line in enumerate(reader):
-                    i, v = line[0], line[1]
-                    # is header
-                    if not v.isnumeric():
-                        continue
-                    pretrust.append({'i': str(i), 'v': float(v)})
-
-        return localtrust, pretrust
+        return lt, pt
 
     def run_eigentrust_from_csv(
             self, localtrust_filename: str, pretrust_filename: str = None,
-            **kwargs,
+            scale: Optional[Union[ScoreScale, str]] = None, **kwargs,
     ) -> List[Score]:
         """
         Run the EigenTrust algorithm using local trust and pre-trust data
@@ -448,6 +502,9 @@ class EigenTrust:
                 The filename of the local trust CSV file.
             pretrust_filename (str, optional):
                 The filename of the pre-trust CSV file. Defaults to None.
+            scale (ScoreScale or str):
+                How to scale the output scores.
+                See `ScoreScale` documentation for details.
 
         Returns:
             List[Score]: List of computed scores.
@@ -456,54 +513,31 @@ class EigenTrust:
             scores = et.run_eigentrust_from_csv('localtrust.csv',
                                                 'pretrust.csv')
         """
-
-        localtrust, pretrust = self._read_scores_from_csv(localtrust_filename,
-                                                          pretrust_filename)
-        return self.run_eigentrust(localtrust, pretrust, **kwargs)
+        scale = self._compat_scale(scale)
+        id2idx, idx2id = trust.make_peer_map()
+        lt_url = 'file:' + os.path.realpath(localtrust_filename)
+        lt = trust.ObjectStorageMatrix(lt_url).load(coord_map=id2idx,
+                                                    on_missing='allocate')
+        pt_url = 'file:' + os.path.realpath(pretrust_filename)
+        pt = trust.ObjectStorageVector(pt_url).load(coord_map=id2idx,
+                                                    on_missing='drop')
+        gt = self.run(lt, pt, scale=scale, **kwargs)
+        return list(gt.load().to_entries(coord_map=idx2id))
 
     def _send_go_eigentrust_req(
             self,
-            pretrust: List[dict],
-            max_pt_id: int,
-            localtrust: List[dict],
-            max_lt_id: int,
-            req: dict = None,
+            pretrust: Optional[trust.Vector],
+            localtrust: trust.Matrix,
             **kwargs,
-    ):
-        """
-        Send a request to the EigenTrust service to compute scores.
-
-        Args:
-            pretrust (list[dict]): List of pre-trust values.
-            max_pt_id (int): The maximum pre-trust ID.
-            localtrust (list[dict]): List of local trust values.
-            max_lt_id (int): The maximum local trust ID.
-
-        Returns:
-            List[dict]: List of computed scores.
-
-        Example:
-            scores = self._send_go_eigentrust_req(pretrust, max_pt_id, localtrust, max_lt_id)
-        """
+    ) -> trust.Vector:
         compute_params = replace_with_kwargs(self.compute_params, kwargs)
         client_params = replace_with_kwargs(self.client_params, kwargs)
         assert_empty_kwargs(kwargs)
-        if req is None:
-            req = {
-                "pretrust": {
-                    "scheme": 'inline',
-                    # np.int64 doesn't serialize; cast to int
-                    "size": int(max_pt_id) + 1,
-                    "entries": pretrust,
-                },
-                "localTrust": {
-                    "scheme": 'inline',
-                    # np.int64 doesn't serialize; cast to int
-                    "size": int(max_lt_id) + 1,
-                    "entries": localtrust,
-                },
-            }
-            compute_params.update_req(req)
+        req = ComputeRequestBody(
+            local_trust=localtrust,
+            pre_trust=pretrust,
+        )
+        compute_params.update_req(req)
 
         start_time = time.perf_counter()
         try:
@@ -513,7 +547,7 @@ class EigenTrust:
                     'Accept': 'application/json',
                     'API-Key': self.api_key,
                 },
-                json=req,
+                json=req.encode(),
                 follow_redirects=True,
             )
             logging.debug(
@@ -525,8 +559,7 @@ class EigenTrust:
                 logging.error(msg)
                 raise RuntimeError(msg)
 
-            resp_dict = response.json()
-            return resp_dict["entries"]
+            return trust.Vector.decode(response.json())
         except Exception:
             logging.error('Error while sending a request to go-eigentrust',
                           exc_info=True)
@@ -559,7 +592,7 @@ class EigenTrust:
             self,
             filepath: str,
             headers: List[str],
-            tablename: str,
+            table_name: str,
             description: str,
             is_private: bool,
             api_key: str,
@@ -570,7 +603,7 @@ class EigenTrust:
         Args:
             filepath (str): The path to the CSV file.
             headers (List[str]): List of CSV headers.
-            tablename (str): The name of the table on Dune Analytics.
+            table_name (str): The name of the table on Dune Analytics.
             description (str): Description of the table.
             is_private (bool): Whether the table is private.
             api_key (str): The API key for Dune Analytics.
@@ -594,7 +627,7 @@ class EigenTrust:
         req = {
             "data": data,
             "description": description,
-            "table_name": tablename,
+            "table_name": table_name,
             "is_private": is_private,
         }
 
@@ -634,91 +667,28 @@ class EigenTrust:
 
     def run_eigentrust_from_s3(
             self, localtrust_filename: str, pretrust_filename: str = None,
-            **kwargs,
+            scale: Optional[Union[ScoreScale, str]] = None, **kwargs,
     ) -> List[Score]:
-        start_time = time.perf_counter()
-        localtrust_tmp_filename = "localtrust-tmp.csv"
-        pretrust_tmp_filename = "pretrust-tmp.csv"
-
-        localtrust, pretrust = self._read_scores_from_csv(localtrust_filename,
-                                                          pretrust_filename)
-
-        try:
-            (
-                localtrust, pretrust, int_to_addr_map, max_id,
-            ) = self._prepare_input(localtrust, pretrust)
-        except _NoEdgesFoundForAddresses as e:
-            print(e)
-            return []
-
-        logging.debug("calling go_eigentrust")
-
-        self._save_dict_to_csv(localtrust, localtrust_tmp_filename)
-        if pretrust_filename is not None:
-            self._save_dict_to_csv(pretrust, pretrust_tmp_filename)
-
-        localtrust_s3 = self._upload_csv_to_s3(localtrust_tmp_filename)
-
-        req = {
-            "localTrust": {
-                "scheme": 'objectstorage',
-                "format": "csv",
-                "url": f"s3://{self.s3_bucket}/{localtrust_s3}",
-            },
-        }
-
-        if pretrust_filename is not None:
-            pretrust_s3 = self._upload_csv_to_s3(pretrust_tmp_filename)
-            req["pretrust"] = {
-                "scheme": 'objectstorage',
-                "format": "csv",
-                "url": f"s3://{self.s3_bucket}/{pretrust_s3}",
-            }
-        compute_params = replace_with_kwargs(self.compute_params, kwargs)
-        compute_params.update_req(req)
-
-        i_scores = self._send_go_eigentrust_req(pretrust=pretrust,
-                                                max_pt_id=max_id,
-                                                localtrust=localtrust,
-                                                max_lt_id=max_id,
-                                                req=req,
-                                                **kwargs)
-
-        addr_scores = [{'i': int_to_addr_map[i_score['i']], 'v': i_score['v']}
-                       for i_score in i_scores]
-        logging.info(f"eigentrust compute took "
-                     f"{time.perf_counter() - start_time} secs ")
-        addr_scores.sort(key=lambda x: x['v'], reverse=True)
-
-        os.remove(localtrust_tmp_filename)
-        if pretrust_filename is not None:
-            os.remove(pretrust_tmp_filename)
-
-        return addr_scores
-
-    def _upload_csv_to_s3(self, file_name) -> str:
-        if not file_name.lower().endswith('.csv'):
-            msg = "CSV file name must end with '.csv'"
-            logging.error(msg)
-            raise RuntimeError(msg)
-
-        object_name = (
-                ''.join(random.choice(string.ascii_letters + string.digits)
-                        for _ in range(8)) +
-                '_' +
-                datetime.now().strftime("%Y%m%d_%H%M%S") +
-                '.csv'
-        )
-        s3_client = boto3.client('s3')
-
-        try:
-            s3_client.upload_file(file_name, self.s3_bucket, object_name)
-            logging.info(f"File {file_name} uploaded to "
-                         f"{self.s3_bucket}/{object_name} successfully.")
-        except Exception as e:
-            logging.error('error while sending a request to aws s3', e)
-
-        return object_name
+        scale = self._compat_scale(scale)
+        id2idx, idx2id = trust.make_peer_map()
+        with NamedTemporaryFile() as f:
+            trust.ObjectStorageMatrix.from_path(localtrust_filename).load(
+                coord_map=id2idx, on_missing='allocate',
+            ).entries.to_csv(f, index=False)
+            f.flush()
+            f.seek(0)
+            lt = trust.ObjectStorageMatrix.from_path(f.name) \
+                .upload_to_s3(self.s3_bucket)
+        with NamedTemporaryFile() as f:
+            trust.ObjectStorageVector.from_path(pretrust_filename).load(
+                coord_map=id2idx, on_missing='drop',
+            ).entries.to_csv(f, index=False)
+            f.flush()
+            f.seek(0)
+            pt = trust.ObjectStorageVector.from_path(f.name) \
+                .upload_to_s3(self.s3_bucket)
+        gt = self.run(lt, pt, scale=scale, **kwargs)
+        return list(gt.load().to_entries(coord_map=idx2id))
 
     # New methods to interact with the backend server
     def _upload_csv(

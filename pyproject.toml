@@ -13,6 +13,9 @@ readme = "README.md"
 python = "^3.8"
 httpx = ">=0.6.7"
 boto3 = ">=1.0"
+dataclasses-json = "^0.6.7"
+numpy = "<1.25.0"
+pandas = "<2.1.0"
 
 [build-system]
 requires = ["poetry-core"]
