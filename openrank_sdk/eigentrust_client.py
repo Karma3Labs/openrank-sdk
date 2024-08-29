@@ -321,7 +321,6 @@ class EigenTrust:
             int_to_addr_map[idx] = addr
         if not pretrust:
             pt_len = len(addresses)
-            print("no pret")
             logging.info(f"generating pretrust from localtrust "
                           f"with equally weighted pretrusted value")
             pretrust = [{'i': addr_to_int_map[addr], 'v': 1 / pt_len}
