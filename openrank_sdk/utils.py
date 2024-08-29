@@ -1,12 +1,8 @@
 from __future__ import annotations
 
 import collections.abc
-import io
-from typing import BinaryIO, ContextManager, Iterator, Mapping, Optional, \
-    Sequence, Union, \
+from typing import Mapping, Sequence, Union, \
     overload
-
-from httpx import SyncByteStream
 
 
 class ReadOnlyMapping(collections.abc.Mapping):
