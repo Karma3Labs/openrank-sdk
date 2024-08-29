@@ -10,8 +10,7 @@ import time
 import warnings
 from dataclasses import asdict, dataclass, fields, replace
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, List, Literal, Optional, \
-    Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import httpx
 import pandas as pd

@@ -9,10 +9,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import chain
 from tempfile import TemporaryFile
-from typing import Any, BinaryIO, ClassVar, Dict, Hashable, Iterable, Iterator, \
-    List, \
-    Literal, \
-    Mapping, Optional, Sequence, Set, Tuple, Type, TypedDict
+from typing import (Any, BinaryIO, ClassVar, Dict, Hashable, Iterable,
+                    Iterator, List, Literal, Mapping, Optional, Sequence, Set,
+                    Tuple, Type, TypedDict)
 from urllib.parse import urlsplit
 
 import boto3
