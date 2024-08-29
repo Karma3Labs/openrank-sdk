@@ -794,6 +794,14 @@ class EigenTrust:
         return [{'i': row['i'], 'v': float(row['v'])} for row in data]
 
     @staticmethod
+    def is_number(value):
+        try:
+            float(value)
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
     def _convert_to_score(data: List[dict]) -> List[Score]:
         """
         Convert a list of dictionaries to a list of Score objects.
