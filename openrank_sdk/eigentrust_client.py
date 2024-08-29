@@ -326,8 +326,6 @@ class EigenTrust:
                           f"with equally weighted pretrusted value")
             pretrust = [{'i': addr_to_int_map[addr], 'v': 1 / pt_len}
                         for addr in addresses]
-            
-            print("pretrust", len(pretrust))
         else:
             pt = []
             for p in pretrust:
