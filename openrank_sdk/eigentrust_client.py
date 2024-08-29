@@ -295,8 +295,7 @@ class EigenTrust:
         return localtrust, pretrust
 
     def _prepare_input(self, localtrust, pretrust):
-        
-        
+
         lt = []
         for entry in localtrust:
             if entry['v'] <= 0.0:
@@ -322,7 +321,7 @@ class EigenTrust:
         if not pretrust:
             pt_len = len(addresses)
             logging.info(f"generating pretrust from localtrust "
-                          f"with equally weighted pretrusted value")
+                         f"with equally weighted pretrusted value")
             pretrust = [{'i': addr_to_int_map[addr], 'v': 1 / pt_len}
                         for addr in addresses]
         else:
@@ -346,7 +345,7 @@ class EigenTrust:
                        'v': entry['v']}
                       for entry in localtrust]
         max_id = len(addresses) - 1
-        
+
         return localtrust, pretrust, int_to_addr_map, max_id
 
     def run_eigentrust(
@@ -424,7 +423,7 @@ class EigenTrust:
 
         pretrust = None
         if pretrust_filename:
-            
+
             pretrust = []
             with open(pretrust_filename, "r") as f:
                 reader = csv.reader(f, delimiter=",")
@@ -461,7 +460,7 @@ class EigenTrust:
 
         localtrust, pretrust = self._read_scores_from_csv(localtrust_filename,
                                                           pretrust_filename)
-        
+
         return self.run_eigentrust(localtrust, pretrust, **kwargs)
 
     def _send_go_eigentrust_req(
@@ -827,7 +826,7 @@ class EigenTrust:
             iv_list = et._convert_to_iv(data)
         """
         return [{'i': row['i'], 'v': float(row['v'])} for row in data]
-    
+
     @staticmethod
     def is_number(value):
         try:
