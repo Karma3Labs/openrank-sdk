@@ -1,5 +1,7 @@
+import boto3
 import csv
 import enum
+import httpx
 import io
 import logging
 import math
@@ -13,9 +15,6 @@ from dataclasses import asdict, dataclass, fields, replace
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, \
     Union
-
-import boto3
-import httpx
 
 
 class IJV(TypedDict):
