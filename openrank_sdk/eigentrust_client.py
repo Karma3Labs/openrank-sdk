@@ -431,7 +431,6 @@ class EigenTrust:
                     i, v = line[0], line[1]
                     # is header
                     if not self.is_number(v):
-                        print("NaN")
                         continue
                     pretrust.append({'i': str(i), 'v': float(v)})
         return localtrust, pretrust
