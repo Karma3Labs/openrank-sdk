@@ -335,7 +335,7 @@ class Inline(Ref):
             coords = tuple(col
                            for col in df.dtypes.keys()
                            if col != value)
-            _logger.debug(f"autodetected {coords=}")
+            _logger.debug(f"auto-detected {coords=}")
         else:
             coords = tuple(coords)
 
