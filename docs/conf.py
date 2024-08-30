@@ -12,8 +12,8 @@ import openrank_sdk
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'OpenRank Python SDK'
-copyright = '2024, Karma3Labs'
-author = 'Karma3Labs'
+copyright = '2024, Karma3 Labs'
+author = 'Karma3 Labs'
 release = openrank_sdk.__version__
 
 # -- General configuration ---------------------------------------------------
