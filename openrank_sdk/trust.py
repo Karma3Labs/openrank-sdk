@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-import collections.abc
 import logging
 import os.path
 import random
 import string
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import chain
 from tempfile import TemporaryFile
-from typing import (Any, BinaryIO, ClassVar, Dict, Hashable, Iterable,
-                    Iterator, List, Literal, Mapping, Optional, Sequence, Set,
-                    Tuple, Type, TypedDict)
+from typing import (Any, BinaryIO, ClassVar, Hashable, Literal, Optional,
+                    Type, TypedDict)
 from urllib.parse import urlsplit
 
 import boto3
@@ -39,10 +38,10 @@ class PeerId2Index(Mapping[PeerId, int]):
     Linked to an `Index2Id` counterpart; see `make_map`.
     """
 
-    def __init__(self, *poargs, idx2id: List[PeerId], **kwargs):
+    def __init__(self, *poargs, idx2id: list[PeerId], **kwargs):
         super().__init__(*poargs, **kwargs)
         self.__idx2id = idx2id
-        self.__id2idx: Dict[PeerId, int] = {}
+        self.__id2idx: dict[PeerId, int] = {}
 
     def __getitem__(self, id_):
         try:
@@ -63,13 +62,13 @@ class PeerId2Index(Mapping[PeerId, int]):
         return iter(self.__id2idx)
 
 
-class PeerIndex2Id(Sequence[PeerId], collections.abc.Sequence):
+class PeerIndex2Id(Sequence[PeerId]):
     """Index-to-identifier sequence.
 
     Linked to an `Id2Index` counterpart; see `make_map`.
     """
 
-    def __init__(self, *poargs, data: List[PeerId], **kwargs):
+    def __init__(self, *poargs, data: list[PeerId], **kwargs):
         super().__init__(*poargs, **kwargs)
         self.__data = data
 
@@ -80,7 +79,7 @@ class PeerIndex2Id(Sequence[PeerId], collections.abc.Sequence):
         return self.__data[index]
 
 
-PeerMap = Tuple[PeerId2Index, PeerIndex2Id]
+PeerMap = tuple[PeerId2Index, PeerIndex2Id]
 
 
 def make_peer_map(ids: Optional[Iterable[PeerId]] = None) -> PeerMap:
@@ -137,7 +136,7 @@ class Ref:
         return self.to_dict()
 
     @classmethod
-    def decode(cls, d: Dict[str, Any]) -> Ref:
+    def decode(cls, d: dict[str, Any]) -> Ref:
         if cls in Ref._roots:
             concrete = cls._scheme_id2cls[d['scheme']]
             return concrete.decode(d)
@@ -148,10 +147,10 @@ class Ref:
     def _load(self, _type: Optional[str] = None):
         raise NotImplementedError
 
-    _scheme_id2cls: ClassVar[Optional[Dict[str, Type[Ref]]]] = None
-    _scheme_cls2id: ClassVar[Optional[Dict[Type[Ref], str]]] = None
+    _scheme_id2cls: ClassVar[Optional[dict[str, Type[Ref]]]] = None
+    _scheme_cls2id: ClassVar[Optional[dict[Type[Ref], str]]] = None
     _scheme: ClassVar[str]
-    _roots: ClassVar[Set[Type[Ref]]] = set()
+    _roots: ClassVar[set[Type[Ref]]] = set()
 
 
 class Matrix(Ref):
@@ -231,7 +230,7 @@ class Inline(Ref):
     ))
     size: Optional[int] = None
 
-    coords: ClassVar[Tuple[str, ...]]
+    coords: ClassVar[tuple[str, ...]]
 
     def __post_init__(self):
         super().__post_init__()

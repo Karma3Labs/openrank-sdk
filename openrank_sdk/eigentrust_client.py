@@ -8,9 +8,10 @@ import math
 import os
 import time
 import warnings
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, fields, replace
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Literal, Optional, Union
 
 import httpx
 import pandas as pd
@@ -62,7 +63,7 @@ class FlatTailStats:
     length: int
     threshold: int
     delta_norm: float
-    ranking: List[int]
+    ranking: list[int]
 
 
 class ScoreScale(enum.Enum):
@@ -89,7 +90,7 @@ class ScoreScale(enum.Enum):
     """
 
 
-_SCORE_SCALERS: Dict[ScoreScale, Callable[[float], float]] = {
+_SCORE_SCALERS: dict[ScoreScale, Callable[[float], float]] = {
     ScoreScale.RAW: lambda v: v,
     ScoreScale.PERCENT: lambda v: v * 100,
     ScoreScale.LOG: lambda v: math.log(v, 0.1),
@@ -103,7 +104,7 @@ def snake2camel(s: str) -> str:
     )
 
 
-def replace_with_kwargs(obj, kwargs: Dict[str, Any]):
+def replace_with_kwargs(obj, kwargs: dict[str, Any]):
     """
     Replace fields of a dataclass instance obj with given kwargs.
 
@@ -304,8 +305,8 @@ class EigenTrust:
 
     @staticmethod
     def normalize_trust(
-            localtrust: List[IJV], pretrust: List[IV] = None,
-    ) -> [List[Score], List[Score]]:
+            localtrust: list[IJV], pretrust: list[IV] = None,
+    ) -> [list[Score], list[Score]]:
         return localtrust, pretrust
 
     def run(self,
@@ -370,8 +371,8 @@ class EigenTrust:
                                                                   ascending=not reverse)
         return globaltrust
 
-    def _prepare_input(self, localtrust: List[IJV],
-                       pretrust: Optional[List[IV]]):
+    def _prepare_input(self, localtrust: list[IJV],
+                       pretrust: Optional[list[IV]]):
         lt = []
         for entry in localtrust:
             if entry['v'] <= 0.0:
@@ -406,9 +407,9 @@ class EigenTrust:
         return scale
 
     def run_eigentrust(
-            self, localtrust: List[IJV], pretrust: List[IV] = None, *,
+            self, localtrust: list[IJV], pretrust: list[IV] = None, *,
             scale: Optional[Union[ScoreScale, str]] = None, **kwargs,
-    ) -> List[Score]:
+    ) -> list[Score]:
         """
         Run the EigenTrust algorithm using the provided local trust and
         pre-trust data.
@@ -473,7 +474,7 @@ class EigenTrust:
             coord_map: trust.PeerId2Index,
             on_lt_missing: trust.OnMissingPeer,
             on_pt_missing: trust.OnMissingPeer,
-    ) -> Tuple[trust.InlineMatrix, trust.InlineVector]:
+    ) -> tuple[trust.InlineMatrix, trust.InlineVector]:
         lt_df = pd.read_csv(localtrust_filename)
         lt_columns = tuple(lt_df.columns)
         pt_df = pd.read_csv(pretrust_filename)
@@ -488,7 +489,7 @@ class EigenTrust:
     def run_eigentrust_from_csv(
             self, localtrust_filename: str, pretrust_filename: str = None,
             scale: Optional[Union[ScoreScale, str]] = None, **kwargs,
-    ) -> List[Score]:
+    ) -> list[Score]:
         """
         Run the EigenTrust algorithm using local trust and pre-trust data
         from CSV files.
@@ -563,7 +564,7 @@ class EigenTrust:
 
     @staticmethod
     def export_scores_to_csv(
-            scores: List[Score], filepath: str, headers: List[str]):
+            scores: list[Score], filepath: str, headers: list[str]):
         """
         Export the computed scores to a CSV file.
 
@@ -587,7 +588,7 @@ class EigenTrust:
     def export_csv_to_dune(
             self,
             filepath: str,
-            headers: List[str],
+            headers: list[str],
             table_name: str,
             description: str,
             is_private: bool,
@@ -654,7 +655,7 @@ class EigenTrust:
         logging.debug(
             f"dune-upload-csv took {time.perf_counter() - start_time} secs ")
 
-    def _save_dict_to_csv(self, data: List[dict], filename: str):
+    def _save_dict_to_csv(self, data: list[dict], filename: str):
         with open(filename, mode='w', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=data[0].keys())
             writer.writeheader()
@@ -664,7 +665,7 @@ class EigenTrust:
     def run_eigentrust_from_s3(
             self, localtrust_filename: str, pretrust_filename: str = None,
             scale: Optional[Union[ScoreScale, str]] = None, **kwargs,
-    ) -> List[Score]:
+    ) -> list[Score]:
         scale = self._compat_scale(scale)
         id2idx, idx2id = trust.make_peer_map()
         with NamedTemporaryFile() as f:
@@ -688,7 +689,7 @@ class EigenTrust:
 
     # New methods to interact with the backend server
     def _upload_csv(
-            self, data: List[dict], headers: List[str], endpoint: str,
+            self, data: list[dict], headers: list[str], endpoint: str,
             overwrite: bool,
     ) -> str:
         """
@@ -735,7 +736,7 @@ class EigenTrust:
 
         return f'{self.go_eigentrust_host_url}/download/{endpoint}'
 
-    def _download_csv(self, endpoint: str) -> List[dict]:
+    def _download_csv(self, endpoint: str) -> list[dict]:
         """
         Download CSV data from the backend server.
 
@@ -761,7 +762,7 @@ class EigenTrust:
         return list(reader)
 
     @staticmethod
-    def _convert_to_ijv(data: List[dict]) -> List[IJV]:
+    def _convert_to_ijv(data: list[dict]) -> list[IJV]:
         """
         Convert a list of dictionaries to a list of IJV objects.
 
@@ -778,7 +779,7 @@ class EigenTrust:
                  'v': float(row['v'])} for row in data]
 
     @staticmethod
-    def _convert_to_iv(data: List[dict]) -> List[IV]:
+    def _convert_to_iv(data: list[dict]) -> list[IV]:
         """
         Convert a list of dictionaries to a list of IV objects.
 
@@ -802,7 +803,7 @@ class EigenTrust:
             return False
 
     @staticmethod
-    def _convert_to_score(data: List[dict]) -> List[Score]:
+    def _convert_to_score(data: list[dict]) -> list[Score]:
         """
         Convert a list of dictionaries to a list of Score objects.
 
@@ -819,7 +820,7 @@ class EigenTrust:
 
     def run_eigentrust_from_id(
             self, localtrust_id: str, pretrust_id: str = None,
-    ) -> List[Score]:
+    ) -> list[Score]:
         """
         Run the EigenTrust algorithm using local trust and pre-trust data
         identified by their IDs.
@@ -861,7 +862,7 @@ class EigenTrust:
     def run_and_publish_eigentrust_from_id(
             self, id_: str, localtrust_id: str, pretrust_id: str = None,
             **kwargs,
-    ) -> Tuple[List[Score], str]:
+    ) -> tuple[list[Score], str]:
         """
         Run the EigenTrust algorithm using local trust and pre-trust data
         identified by their IDs, and publish the results.
@@ -885,9 +886,9 @@ class EigenTrust:
         return scores, publish_url
 
     def run_and_publish_eigentrust(
-            self, id_: str, localtrust: List[IJV], pretrust: List[IV] = None,
+            self, id_: str, localtrust: list[IJV], pretrust: list[IV] = None,
             **kwargs,
-    ) -> Tuple[List[Score], str]:
+    ) -> tuple[list[Score], str]:
         """
         Run the EigenTrust algorithm using local trust and pre-trust data,
         and publish the results.
@@ -918,7 +919,7 @@ class EigenTrust:
         return scores, publish_url
 
     def publish_eigentrust(
-            self, id_: str, result: List[Score], **kwargs) -> str:
+            self, id_: str, result: list[Score], **kwargs) -> str:
         """
         Publish the EigenTrust results.
 
@@ -936,7 +937,7 @@ class EigenTrust:
         return self._upload_csv(result, SCORE_CSV_HEADERS,
                                 f'eigentrust/{id_}', overwrite)
 
-    def fetch_eigentrust(self, id_: str, **_) -> List[Score]:
+    def fetch_eigentrust(self, id_: str, **_) -> list[Score]:
         """
         Fetch the EigenTrust results by ID.
 
@@ -952,7 +953,7 @@ class EigenTrust:
         return self._convert_to_score(self._download_csv(f'eigentrust/{id_}'))
 
     def publish_localtrust(
-            self, id_: str, result: List[IJV], **kwargs) -> str:
+            self, id_: str, result: list[IJV], **kwargs) -> str:
         """
         Publish the local trust data.
 
@@ -970,7 +971,7 @@ class EigenTrust:
         return self._upload_csv(result, IJV_CSV_HEADERS,
                                 f'localtrust/{id_}', overwrite)
 
-    def fetch_localtrust(self, id_: str, **_) -> List[IJV]:
+    def fetch_localtrust(self, id_: str, **_) -> list[IJV]:
         """
         Fetch the local trust data by ID.
 
@@ -985,7 +986,7 @@ class EigenTrust:
         """
         return self._convert_to_ijv(self._download_csv(f'localtrust/{id_}'))
 
-    def publish_pretrust(self, id_: str, result: List[IV], **kwargs) -> str:
+    def publish_pretrust(self, id_: str, result: list[IV], **kwargs) -> str:
         """
         Publish the pre-trust data.
 
@@ -1003,7 +1004,7 @@ class EigenTrust:
         return self._upload_csv(result, IV_CSV_HEADERS,
                                 f'pretrust/{id_}', overwrite)
 
-    def fetch_pretrust(self, id_: str, **_) -> List[IV]:
+    def fetch_pretrust(self, id_: str, **_) -> list[IV]:
         """
         Fetch the pre-trust data by ID.
 

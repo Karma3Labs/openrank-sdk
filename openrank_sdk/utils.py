@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import collections.abc
-from typing import Mapping, Sequence, Union, \
-    overload
+from collections.abc import Mapping, Sequence
+from typing import overload
 
 
-class ReadOnlyMapping(collections.abc.Mapping):
+class ReadOnlyMapping(Mapping):
     """Read-only view of an underlying mapping.
 
     Contains an explicit membership check
@@ -29,7 +28,7 @@ class ReadOnlyMapping(collections.abc.Mapping):
         return iter(self.__data)
 
 
-class ReadOnlySequence(collections.abc.Sequence):
+class ReadOnlySequence(Sequence):
     """Read-only view of an underlying sequence.
 
     Contains an explicit index check
@@ -40,7 +39,7 @@ class ReadOnlySequence(collections.abc.Sequence):
         super().__init__(*args, **kwargs)
         self.__data = data
 
-    def __getitem__(self, index: Union[int, slice]):
+    def __getitem__(self, index: int | slice):
         data_len = len(self.__data)
         if isinstance(index, int) and not (-data_len <= index < data_len):
             raise IndexError(index)
@@ -51,20 +50,20 @@ class ReadOnlySequence(collections.abc.Sequence):
 
 
 @overload
-def read_only_collection(c: collections.abc.Sequence) -> ReadOnlySequence:
+def read_only_collection(c: Sequence) -> ReadOnlySequence:
     pass
 
 
 @overload
-def read_only_collection(c: collections.abc.Mapping) -> ReadOnlyMapping:
+def read_only_collection(c: Mapping) -> ReadOnlyMapping:
     pass
 
 
 def read_only_collection(c):
     """Read-only view of an underlying collection (sequence or map)."""
-    if isinstance(c, collections.abc.Sequence):
+    if isinstance(c, Sequence):
         return ReadOnlySequence(data=c)
-    elif isinstance(c, collections.abc.Mapping):
+    elif isinstance(c, Mapping):
         return ReadOnlyMapping(data=c)
     else:
         msg = f"{c=} is not a sequence or a mapping"
