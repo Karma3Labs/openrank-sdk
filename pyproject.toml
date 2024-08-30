@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "openrank-sdk"
-version = "0.3.0"
+version = "0"
 description = ""
 authors = [
     "SeungJu Lee <sj@karma3labs.com>",
@@ -17,6 +17,9 @@ dataclasses-json = "^0.6.7"
 numpy = "<1.25.0"
 pandas = "<2.1.0"
 sphinx = "^7.1.0"
+
+[tool.poetry-version-plugin]
+source = "init"
 
 [build-system]
 requires = ["poetry-core"]
