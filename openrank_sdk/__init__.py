@@ -1,3 +1,5 @@
+import importlib.metadata
+
 from .eigentrust_client import EigenTrust
 
-__version__ = '0.3.0'
+__version__ = importlib.metadata.version(__name__)
