@@ -14,8 +14,8 @@ python = "^3.9"
 httpx = ">=0.6.7"
 boto3 = ">=1.0"
 dataclasses-json = "^0.6.7"
-numpy = ">=2.0.0"
-pandas = ">=2.0.0"
+numpy = ">=1.22.2"
+pandas = ">=1.4.0"
 sphinx = ">=7.1.0"
 
 [tool.poetry-version-plugin]
